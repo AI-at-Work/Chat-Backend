@@ -1,0 +1,26 @@
+#Server
+SERVER_ADDRESS=
+
+# PostgreSQL Configuration
+DB_HOST=
+DB_USER=
+DB_PASSWORD=
+DB_NAME=
+DB_PORT=
+
+# pgAdmin Configuration
+PGADMIN_DEFAULT_EMAIL=
+PGADMIN_DEFAULT_PASSWORD=
+
+# Redis Configuration
+REDIS_ADDRESS=
+REDIS_PASSWORD=
+REDIS_DB=0
+
+# Redis Stream Configurations
+REDIS_STREAM=
+REDIS_STREAM_GROUP=
+REDIS_WORKER_NAME=
+
+# Public Directory Name
+PUBLIC_DIR=
