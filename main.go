@@ -28,9 +28,13 @@ func main() {
 	}
 
 	database := services.GetDataBase()
+	if err := database.CreateChatSchemaInCash(); err != nil {
+		log.Println("Unable to create the schema in redis database", err)
+		return
+	}
 	log.Println("Database connected")
 
-	if err := initialize.LoadAllModels(database.Db); err != nil {
+	if err = initialize.LoadAllModels(database.Db); err != nil {
 		log.Println("Unable to load model data in database", err)
 		return
 	}

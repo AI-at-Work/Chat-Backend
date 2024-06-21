@@ -10,6 +10,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/RediSearch/redisearch-go/v2/redisearch"
+	bert "github.com/go-skynet/go-bert.cpp"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/redis/go-redis/v9"
@@ -22,6 +24,8 @@ type Database struct {
 	Db     *sqlx.DB
 	Cache  *redis.Client
 	Stream *worker.StreamDataBase
+	Vector *redisearch.Client
+	Model  *bert.Bert
 }
 
 func GetDataBase() *Database {
@@ -29,17 +33,19 @@ func GetDataBase() *Database {
 		Db:     initialize.InitPostgres(),
 		Cache:  initialize.InitRedis(),
 		Stream: worker.GetStreamDataBase(),
+		Vector: initialize.InitRedisChatVector(),
+		Model:  initialize.InitModel(),
 	}
 }
 
-func (database *Database) DeleteSession(userId string, sessionId string) (structures.SessionDeleteResponse, error) {
+func (dataBase *Database) DeleteSession(userId string, sessionId string) (structures.SessionDeleteResponse, error) {
 	key := fmt.Sprintf("user:%s:session:%s", userId, sessionId)
-	_, err := database.Cache.Del(context.Background(), key).Result()
+	_, err := dataBase.Cache.Del(context.Background(), key).Result()
 	if err != nil {
 		return structures.SessionDeleteResponse{}, err
 	}
 
-	tx := database.Db.MustBegin()
+	tx := dataBase.Db.MustBegin()
 	query := `DELETE FROM Session_Details WHERE Session_Id = $1`
 	rows := tx.MustExec(query, sessionId)
 
@@ -63,9 +69,9 @@ func (database *Database) DeleteSession(userId string, sessionId string) (struct
 	}, nil
 }
 
-func (database *Database) GetUserDetails(userId string) (*structures.UserDataResponse, error) {
+func (dataBase *Database) GetUserDetails(userId string) (*structures.UserDataResponse, error) {
 	var data structures.UserDataResponse
-	err := database.Db.Get(&data, "select user_id, username from user_data where user_id=$1", userId)
+	err := dataBase.Db.Get(&data, "select user_id, username from user_data where user_id=$1", userId)
 
 	if err != nil {
 		return nil, err
@@ -73,7 +79,7 @@ func (database *Database) GetUserDetails(userId string) (*structures.UserDataRes
 	return &data, nil
 }
 
-func (database *Database) CreateNewSession(userId string, prompt string, modelId int) (string, error) {
+func (dataBase *Database) CreateNewSession(userId string, prompt string, modelId int) (string, error) {
 	// Generate a new UUID for the session
 	sessionId := uuid.New().String()
 
@@ -85,7 +91,7 @@ func (database *Database) CreateNewSession(userId string, prompt string, modelId
 		"chats":          "[]", // Start with an empty chats array
 	}
 
-	_, err := database.Cache.HSet(context.Background(), key, sessionData).Result()
+	_, err := dataBase.Cache.HSet(context.Background(), key, sessionData).Result()
 	if err != nil {
 		return "", err
 	}
@@ -93,7 +99,7 @@ func (database *Database) CreateNewSession(userId string, prompt string, modelId
 	return sessionId, nil
 }
 
-func (database *Database) SetSessionValues(userId string, prompt string, modelId int, sessionId string, chats []structures.Chat) error {
+func (dataBase *Database) SetSessionValues(userId string, prompt string, modelId int, sessionId string, chats []structures.Chat) error {
 	chatsJSON, err := json.Marshal(chats)
 	if err != nil {
 		return err
@@ -107,19 +113,19 @@ func (database *Database) SetSessionValues(userId string, prompt string, modelId
 		"chats":          chatsJSON, // Start with an empty chats array
 	}
 
-	_, err = database.Cache.HSet(context.Background(), key, sessionData).Result()
+	_, err = dataBase.Cache.HSet(context.Background(), key, sessionData).Result()
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (database *Database) GetUserSessionData(userId string, sessionId string) (structures.SessionData, error) {
+func (dataBase *Database) GetUserSessionData(userId string, sessionId string) (structures.SessionData, error) {
 	// Construct the key to access the session data in Redis
 	key := fmt.Sprintf("user:%s:session:%s", userId, sessionId)
 
 	// Retrieve session data from Redis
-	values, err := database.Cache.HGetAll(context.Background(), key).Result()
+	values, err := dataBase.Cache.HGetAll(context.Background(), key).Result()
 	if err != nil {
 		return structures.SessionData{}, fmt.Errorf("error retrieving session data from Redis: %w", err)
 	}
@@ -150,12 +156,12 @@ func (database *Database) GetUserSessionData(userId string, sessionId string) (s
 	return sessionData, nil
 }
 
-func (database *Database) CheckModelAccess(userId string, modelId int) error {
+func (dataBase *Database) CheckModelAccess(userId string, modelId int) error {
 	// Construct the key to access the user's data in Redis
 	userKey := fmt.Sprintf("user:%s", userId)
 
 	// Retrieve the models data from Redis
-	modelsJSON, err := database.Cache.HGet(context.Background(), userKey, "models").Result()
+	modelsJSON, err := dataBase.Cache.HGet(context.Background(), userKey, "models").Result()
 	if err != nil {
 		return err
 	}
@@ -174,11 +180,11 @@ func (database *Database) CheckModelAccess(userId string, modelId int) error {
 	return errors.New("access denied: user does not have access to this model")
 }
 
-func (database *Database) GetSessionsByUserId(userId string) (structures.SessionListResponse, error) {
+func (dataBase *Database) GetSessionsByUserId(userId string) (structures.SessionListResponse, error) {
 	// Use parameterized query to prevent SQL injection
 	query := "SELECT session_id, session_name FROM session_details WHERE user_id=$1 ORDER BY session_name DESC"
 
-	rows, err := database.Db.Query(query, userId)
+	rows, err := dataBase.Db.Query(query, userId)
 	if err != nil {
 		return structures.SessionListResponse{}, err
 	}
@@ -213,12 +219,12 @@ func (database *Database) GetSessionsByUserId(userId string) (structures.Session
 	}, nil
 }
 
-func (database *Database) GetUserSessionChat(userId string, sessionId string) (string, error) {
+func (dataBase *Database) GetUserSessionChat(userId string, sessionId string) (string, error) {
 	// Construct the key to access the session data in Redis
 	key := fmt.Sprintf("user:%s:session:%s", userId, sessionId)
 
 	// Retrieve session data from Redis
-	values, err := database.Cache.HGet(context.Background(), key, "chats").Result()
+	values, err := dataBase.Cache.HGet(context.Background(), key, "chats").Result()
 	if err != nil {
 		return "", fmt.Errorf("error retrieving session data from Redis: %w", err)
 	}
@@ -230,7 +236,7 @@ func (database *Database) GetUserSessionChat(userId string, sessionId string) (s
 	return values, nil
 }
 
-func (database *Database) GetAIModel() (structures.AIModelsResponse, error) {
+func (dataBase *Database) GetAIModel() (structures.AIModelsResponse, error) {
 	modelNames := make([]string, 0, len(model_data.ModelNameMapping))
 	for name := range model_data.ModelNameMapping {
 		modelNames = append(modelNames, name)

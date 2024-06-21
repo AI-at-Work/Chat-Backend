@@ -11,12 +11,12 @@ import (
 	"os"
 )
 
-func (database *Database) SaveFile(conn *fiber.Ctx, sessionId string, fileName string, file *multipart.FileHeader) error {
+func (dataBase *Database) SaveFile(conn *fiber.Ctx, sessionId string, fileName string, file *multipart.FileHeader) error {
 	var query string
 	var err error
 
 	// Start a transaction
-	tx, err := database.Db.BeginTxx(conn.Context(), nil) // Notice the use of BeginTxx for better context support
+	tx, err := dataBase.Db.BeginTxx(conn.Context(), nil) // Notice the use of BeginTxx for better context support
 	if err != nil {
 		return fmt.Errorf("failed to start file save transaction: %w", err)
 	}
@@ -63,12 +63,12 @@ func (database *Database) SaveFile(conn *fiber.Ctx, sessionId string, fileName s
 	return nil
 }
 
-func (database *Database) AddSession(ctx context.Context, userId string, sessionId string, modelId string, sessionName string) error {
+func (dataBase *Database) AddSession(ctx context.Context, userId string, sessionId string, modelId string, sessionName string) error {
 	var query string
 	var err error
 
 	// Start a transaction
-	tx, err := database.Db.BeginTxx(ctx, nil) // Notice the use of BeginTxx for better context support
+	tx, err := dataBase.Db.BeginTxx(ctx, nil) // Notice the use of BeginTxx for better context support
 	if err != nil {
 		return fmt.Errorf("failed to start transaction: %w", err)
 	}

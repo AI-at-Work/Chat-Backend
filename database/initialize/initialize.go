@@ -34,6 +34,8 @@ func InitPostgres() *sqlx.DB {
 		os.Getenv("DB_PASSWORD"),
 	)
 
+	fmt.Println(databaseString)
+
 	db, err := sqlx.Connect("postgres", databaseString)
 	if err != nil {
 		panic(err)

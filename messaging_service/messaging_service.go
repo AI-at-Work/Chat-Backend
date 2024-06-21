@@ -17,7 +17,6 @@ import (
 )
 
 func GetChatResponse(database *services.Database, received *structures.UserMessageRequest, messageType int, conn *websocket.Conn) error {
-
 	fmt.Println("File Name: ", received.FileName)
 
 	var isNew bool = false
@@ -54,8 +53,14 @@ func GetChatResponse(database *services.Database, received *structures.UserMessa
 		}
 	}
 
+	// OpenAI Embedding For the user request and then retrive most relevent chats
+	embeddingRequest, err := api_call.ApiEmbedding(received.Message, database.Model)
+	if err != nil {
+		return errors.New(string(error_code.Error(error_code.ErrorCodeUnableToCreateEmbedding)))
+	}
+
 	sessionData.Chats = append(sessionData.Chats, structures.Chat{"user", received.Message})
-	err := helper_functions.LimitTokenSize(&sessionData, model_data.ModelContextLength(sessionData.ModelId))
+	err = helper_functions.LimitTokenSize(&sessionData, model_data.ModelContextLength(sessionData.ModelId))
 	if err != nil {
 		return errors.New(string(error_code.Error(error_code.ErrorCodeUnableToTokenizeData)))
 	}
@@ -64,10 +69,22 @@ func GetChatResponse(database *services.Database, received *structures.UserMessa
 	fmt.Println("In OPEN AI ")
 
 	// OpenAI API Call
+	chats, err := database.SearchInVectorCache(received.UserId, sessionData.SessionId, embeddingRequest)
+	if err != nil {
+		return errors.New(string(error_code.Error(error_code.ErrorCodeUnableToSearchForEmbedding)))
+	}
+	fmt.Printf("\n\n\nSEARCH DOCS: ", chats)
+
 	AiResponse, err := api_call.OpenAIApiCall(sessionData, received.FileName)
 	if err != nil {
 		return errors.New(string(error_code.Error(error_code.ErrorCodeUnableToReceiveResponseToQuery)))
 	}
+
+	embeddingResponse, err := api_call.ApiEmbedding(AiResponse, database.Model)
+	if err != nil {
+		return errors.New(string(error_code.Error(error_code.ErrorCodeUnableToCreateEmbedding)))
+	}
+	embedding := fmt.Sprintf("%s, %s", embeddingRequest, embeddingResponse)
 
 	data := structures.UserMessageResponse{
 		UserId:      received.UserId,
@@ -112,6 +129,7 @@ func GetChatResponse(database *services.Database, received *structures.UserMessa
 		fmt.Sprintf("%d", sessionData.ModelId),
 		sessionData.Prompt,
 		string(newConversionStr),
+		embedding,
 		sessionData.SessionName,
 		isNew)
 	return err

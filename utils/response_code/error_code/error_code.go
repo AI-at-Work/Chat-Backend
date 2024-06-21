@@ -13,6 +13,8 @@ const (
 	ErrorCodeUnableToLoadChats              = 9
 	ErrorCodeUnableToDeleteSession          = 10
 	ErrorCodeUnableToGenerateAIModelList    = 11
+	ErrorCodeUnableToCreateEmbedding        = 12
+	ErrorCodeUnableToSearchForEmbedding     = 13
 )
 
 var errorCodeMapping = map[int]string{
@@ -28,6 +30,8 @@ var errorCodeMapping = map[int]string{
 	9:  "Unable to Load Chats",
 	10: "Unable to Delete Session",
 	11: "Unable to Generate AI Model List",
+	12: "Unable to Create Embedding",
+	13: "Unable to Search For Embedding",
 }
 
 func Error(num int) []byte {

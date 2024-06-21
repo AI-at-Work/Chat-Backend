@@ -17,7 +17,7 @@ func GetStreamDataBase() *StreamDataBase {
 	}
 }
 
-func (dataBase *StreamDataBase) AddToStream(ctx context.Context, userId string, sessionId string, modelId string, sessionPrompt string, chats string, sessionName string, isNew bool) error {
+func (dataBase *StreamDataBase) AddToStream(ctx context.Context, userId string, sessionId string, modelId string, sessionPrompt string, chats string, chatsVector string, sessionName string, isNew bool) error {
 	var isNewStr string
 	if isNew {
 		isNewStr = "new"
@@ -29,7 +29,7 @@ func (dataBase *StreamDataBase) AddToStream(ctx context.Context, userId string, 
 		Stream: os.Getenv("REDIS_STREAM"),
 		MaxLen: 0,
 		ID:     "",
-		Values: []string{"userId", userId, "sessionId", sessionId, "sessionPrompt", sessionPrompt, "modelId", modelId, "chats", chats, "sessionName", sessionName, "isNew", isNewStr},
+		Values: []string{"userId", userId, "sessionId", sessionId, "sessionPrompt", sessionPrompt, "modelId", modelId, "chats", chats, "vector", chatsVector, "sessionName", sessionName, "isNew", isNewStr},
 	}).Err()
 	if err != nil {
 		return err

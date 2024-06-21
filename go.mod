@@ -3,8 +3,11 @@ module ai-chat
 go 1.22.3
 
 require (
+	github.com/RediSearch/redisearch-go/v2 v2.1.1
+	github.com/go-skynet/go-bert.cpp v0.0.0-20231028093757-710044b12454
 	github.com/gofiber/contrib/websocket v1.3.1
 	github.com/gofiber/fiber/v2 v2.52.4
+	github.com/gomodule/redigo v1.9.2
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
 	github.com/lib/pq v1.10.9

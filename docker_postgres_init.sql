@@ -50,6 +50,7 @@ BEGIN
         CREATE TABLE Chat_Details (
             Session_Id UUID PRIMARY KEY,
             Session_Prompt TEXT NOT NULL,
+            Chats_Vector JSONB NOT NULL DEFAULT '[]'::JSONB,
             Chats JSONB NOT NULL DEFAULT '[]'::JSONB,
             FOREIGN KEY (Session_Id) REFERENCES Session_Details(Session_Id) ON DELETE CASCADE
         );
@@ -64,6 +65,11 @@ BEGIN
             IF TG_OP = 'UPDATE' AND NEW.Chats IS NOT NULL THEN
                 -- Append new chat entries to existing JSONB array
                 NEW.Chats := OLD.Chats || NEW.Chats;
+            END IF;
+
+            IF TG_OP = 'UPDATE' AND NEW.Chats_Vector IS NOT NULL THEN
+                -- Append new chat entries to existing JSONB array
+                NEW.Chats_Vector := OLD.Chats_Vector || NEW.Chats_Vector;
             END IF;
             RETURN NEW;
         END;
