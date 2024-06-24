@@ -14,6 +14,8 @@ import (
 	"fmt"
 	"github.com/gofiber/contrib/websocket"
 	"github.com/redis/go-redis/v9"
+	"strings"
+	"time"
 )
 
 func GetChatResponse(database *services.Database, received *structures.UserMessageRequest, messageType int, conn *websocket.Conn) error {
@@ -54,10 +56,16 @@ func GetChatResponse(database *services.Database, received *structures.UserMessa
 	}
 
 	// OpenAI Embedding For the user request and then retrive most relevent chats
-	embeddingRequest, err := api_call.ApiEmbedding(received.Message, database.Model)
+	embeddingRequest, err := api_call.ApiEmbedding(received.Message)
 	if err != nil {
 		return errors.New(string(error_code.Error(error_code.ErrorCodeUnableToCreateEmbedding)))
 	}
+
+	chats, _, err := database.SearchInVectorCache(received.UserId, sessionData.SessionId, embeddingRequest)
+	if err != nil {
+		return errors.New(string(error_code.Error(error_code.ErrorCodeUnableToSearchForEmbedding)))
+	}
+	fmt.Printf("\n\n\nSEARCH DOCS: ", chats)
 
 	sessionData.Chats = append(sessionData.Chats, structures.Chat{"user", received.Message})
 	err = helper_functions.LimitTokenSize(&sessionData, model_data.ModelContextLength(sessionData.ModelId))
@@ -69,22 +77,18 @@ func GetChatResponse(database *services.Database, received *structures.UserMessa
 	fmt.Println("In OPEN AI ")
 
 	// OpenAI API Call
-	chats, err := database.SearchInVectorCache(received.UserId, sessionData.SessionId, embeddingRequest)
-	if err != nil {
-		return errors.New(string(error_code.Error(error_code.ErrorCodeUnableToSearchForEmbedding)))
-	}
-	fmt.Printf("\n\n\nSEARCH DOCS: ", chats)
-
 	AiResponse, err := api_call.OpenAIApiCall(sessionData, received.FileName)
 	if err != nil {
 		return errors.New(string(error_code.Error(error_code.ErrorCodeUnableToReceiveResponseToQuery)))
 	}
 
-	embeddingResponse, err := api_call.ApiEmbedding(AiResponse, database.Model)
+	embeddingResponse, err := api_call.ApiEmbedding(AiResponse)
 	if err != nil {
 		return errors.New(string(error_code.Error(error_code.ErrorCodeUnableToCreateEmbedding)))
 	}
-	embedding := fmt.Sprintf("%s, %s", embeddingRequest, embeddingResponse)
+
+	embedding := fmt.Sprintf("%s,%s", strings.Replace(fmt.Sprintf("%v", embeddingRequest), " ", ",", -1), strings.Replace(fmt.Sprintf("%v", embeddingResponse), " ", ",", -1))
+	fmt.Println("Final Embedding : ", embedding)
 
 	data := structures.UserMessageResponse{
 		UserId:      received.UserId,
@@ -122,6 +126,10 @@ func GetChatResponse(database *services.Database, received *structures.UserMessa
 	}
 
 	_ = database.SetSessionValues(received.UserId, sessionData.Prompt, sessionData.ModelId, sessionData.SessionId, sessionData.Chats)
+
+	_ = database.AddToVectorCache(received.UserId, sessionData.SessionId, time.Now().UnixMilli(), fmt.Sprintf("{\"role\":\"user\", \"content\":\"%s\"}", received.Message), embeddingRequest)
+	_ = database.AddToVectorCache(received.UserId, sessionData.SessionId, time.Now().UnixMilli(), fmt.Sprintf("{\"role\":\"assistant\", \"content\":\"%s\"}", AiResponse), embeddingResponse)
+
 	_ = database.Stream.AddToStream(
 		context.Background(),
 		received.UserId,

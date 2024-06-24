@@ -4,7 +4,6 @@ go 1.22.3
 
 require (
 	github.com/RediSearch/redisearch-go/v2 v2.1.1
-	github.com/go-skynet/go-bert.cpp v0.0.0-20231028093757-710044b12454
 	github.com/gofiber/contrib/websocket v1.3.1
 	github.com/gofiber/fiber/v2 v2.52.4
 	github.com/gomodule/redigo v1.9.2
@@ -19,18 +18,21 @@ require (
 	github.com/andybalholm/brotli v1.1.0 // indirect
 	github.com/dlclark/regexp2 v1.10.0 // indirect
 	github.com/fasthttp/websocket v1.5.8 // indirect
+	github.com/fogfish/word2vec v0.0.0-20240225155258-5a869a46f03b // indirect
 	github.com/gobwas/httphead v0.1.0 // indirect
 	github.com/gobwas/pool v0.2.1 // indirect
 	github.com/klauspost/compress v1.17.7 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-runewidth v0.0.15 // indirect
+	github.com/redis/rueidis v1.0.39 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
+	github.com/sashabaranov/go-openai v1.26.0 // indirect
 	github.com/savsgio/gotils v0.0.0-20240303185622-093b76447511 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasthttp v1.52.0 // indirect
 	github.com/valyala/tcplisten v1.0.0 // indirect
-	golang.org/x/net v0.23.0 // indirect
+	golang.org/x/net v0.24.0 // indirect
 	golang.org/x/sys v0.20.0 // indirect
 )
 
@@ -39,4 +41,8 @@ require (
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/gobwas/ws v1.4.0
 	github.com/jmoiron/sqlx v1.4.0
+)
+
+replace (
+	github.com/RediSearch/redisearch-go/v2 v2.1.1 => /home/sumit/SHITIJ/redisearch-go-master/redisearch-go-master/
 )

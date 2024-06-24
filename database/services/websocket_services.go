@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/RediSearch/redisearch-go/v2/redisearch"
-	bert "github.com/go-skynet/go-bert.cpp"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/redis/go-redis/v9"
@@ -25,7 +24,6 @@ type Database struct {
 	Cache  *redis.Client
 	Stream *worker.StreamDataBase
 	Vector *redisearch.Client
-	Model  *bert.Bert
 }
 
 func GetDataBase() *Database {
@@ -34,7 +32,6 @@ func GetDataBase() *Database {
 		Cache:  initialize.InitRedis(),
 		Stream: worker.GetStreamDataBase(),
 		Vector: initialize.InitRedisChatVector(),
-		Model:  initialize.InitModel(),
 	}
 }
 

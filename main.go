@@ -1,7 +1,6 @@
 package main
 
 import (
-	"ai-chat/database/initialize"
 	"ai-chat/database/services"
 	"ai-chat/handlers"
 	"github.com/gofiber/fiber/v2"
@@ -28,25 +27,21 @@ func main() {
 	}
 
 	database := services.GetDataBase()
-	if err := database.CreateChatSchemaInCash(); err != nil {
-		log.Println("Unable to create the schema in redis database", err)
-		return
-	}
 	log.Println("Database connected")
 
-	if err = initialize.LoadAllModels(database.Db); err != nil {
+	if err = services.LoadAllModels(database.Db); err != nil {
 		log.Println("Unable to load model data in database", err)
 		return
 	}
 	log.Println("AI Models Loaded successfully")
 
-	if err := initialize.LoadAllUsers(database.Db, database.Cache); err != nil {
+	if err := services.LoadAllUsers(database.Db, database.Cache); err != nil {
 		log.Println("Unable to load users data in cache", err)
 		return
 	}
 	log.Println("Users Data Loaded successfully")
 
-	if err := initialize.LoadSessionDetails(database.Db, database.Cache); err != nil {
+	if err := services.PopulateRedisCache(database); err != nil {
 		log.Println("Unable to load session data in cache", err)
 		return
 	}

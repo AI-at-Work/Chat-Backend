@@ -78,6 +78,10 @@ type Chat struct {
 	Content string `json:"content"`
 }
 
+type Vector struct {
+	Data []float32
+}
+
 type SessionData struct {
 	SessionId   string `json:"session_id" db:"session_id"`
 	SessionName string `json:"session_name" db:"session_name"`
