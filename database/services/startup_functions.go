@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/jmoiron/sqlx"
-	"github.com/redis/go-redis/v9"
 	"strings"
 	"time"
 )
@@ -30,9 +29,9 @@ func LoadAllModels(db *sqlx.DB) error {
 	return nil
 }
 
-func LoadAllUsers(db *sqlx.DB, rdb *redis.Client) error {
+func LoadAllUsers(db *Database) error {
 	query := `SELECT User_Id, UserName, Models FROM User_Data`
-	rows, err := db.Query(query)
+	rows, err := db.Db.Query(query)
 	if err != nil {
 		return err
 	}
@@ -56,13 +55,19 @@ func LoadAllUsers(db *sqlx.DB, rdb *redis.Client) error {
 		// Redis key for storing user data
 		userKey := fmt.Sprintf("user:%s", userID)
 
-		_, err = rdb.HSet(context.Background(), userKey, map[string]interface{}{
+		_, err = db.Cache.HSet(context.Background(), userKey, map[string]interface{}{
 			"username": userName,
 			"models":   models,
 		}).Result()
 		if err != nil {
 			return err
 		}
+
+		err = db.CreateChatSchemaInCache(userID)
+		if err != nil {
+			return err
+		}
+
 		fmt.Println("Loaded user:", userID)
 	}
 	return nil
@@ -117,17 +122,12 @@ func PopulateRedisCache(db *Database) error {
 		}
 		fmt.Println("Loaded session:", sessionID)
 
-		err = db.CreateChatSchemaInCache(userID)
-		if err != nil {
-			return err
-		}
-
 		var chatsList []structures.Chat
 		if err := json.Unmarshal([]byte(chats), &chatsList); err != nil {
 			return fmt.Errorf("error parsing chats data: %w", err)
 		}
 
-		var vectorList []structures.Vector
+		var vectorList [][]float32
 		if err := json.Unmarshal([]byte(chatsVector), &vectorList); err != nil {
 			return fmt.Errorf("error parsing chats vector data: %w", err)
 		}
@@ -136,10 +136,13 @@ func PopulateRedisCache(db *Database) error {
 			panic("Data Inconsistency Found ..!!. \n Len of chatList must be equal to vectorList")
 		}
 
+		fmt.Println("LEN : ", len(chatsList))
+
 		for index, _ := range chatsList {
 			err := db.AddToVectorCache(userID, sessionID, time.Now().UnixMilli(), fmt.Sprintf("{\"role\":\"%s\", \"content\":\"%s\"}",
-				chatsList[index].Role, chatsList[index].Content), vectorList[index].Data)
+				chatsList[index].Role, chatsList[index].Content), vectorList[index])
 			if err != nil {
+				fmt.Println("ERRR: ", err)
 				return err
 			}
 		}

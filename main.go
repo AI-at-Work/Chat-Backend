@@ -35,7 +35,7 @@ func main() {
 	}
 	log.Println("AI Models Loaded successfully")
 
-	if err := services.LoadAllUsers(database.Db, database.Cache); err != nil {
+	if err := services.LoadAllUsers(database); err != nil {
 		log.Println("Unable to load users data in cache", err)
 		return
 	}

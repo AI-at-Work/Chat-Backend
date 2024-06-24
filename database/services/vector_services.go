@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 )
 
 func (database *Database) CreateChatSchemaInCache(userID string) error {
@@ -32,9 +33,12 @@ func (database *Database) CreateChatSchemaInCache(userID string) error {
 			},
 		}))
 
-	_ = database.Vector.Drop()
+	//_ = database.Vector.Drop()
 
 	if err := database.Vector.CreateIndex(sc); err != nil {
+		if strings.Contains(err.Error(), "Index already exists") {
+			return nil
+		}
 		return fmt.Errorf("failed to create index: %w", err)
 	}
 
@@ -65,6 +69,8 @@ func (database *Database) SearchInVectorCache(userID, sessionID string, userQuer
 	database.Vector.SetIndexName(fmt.Sprintf("%s:%s", os.Getenv("INDEX_NAME"), userID))
 	userQueryParsed := rueidis.VectorString32(userQueryEmbedding)
 
+	fmt.Println("MAX LIMIT:", maxLimit)
+
 	res, err := redis.Values(database.Vector.GetConnection().Do(
 		"FT.SEARCH", fmt.Sprintf("%s:%s", os.Getenv("INDEX_NAME"), userID),
 		fmt.Sprintf("@session_id:%s @chat_embeddings:[VECTOR_RANGE 0.2 $query_vector]=>{$YIELD_DISTANCE_AS: vector_dist}", sessionID),
@@ -82,6 +88,7 @@ func (database *Database) SearchInVectorCache(userID, sessionID string, userQuer
 	//	"SORTBY", "x",
 	//	"LIMIT", "0", maxLimit,
 	//	"DIALECT", 2))
+	fmt.Println(err)
 	if err != nil {
 		return nil, -1, err
 	}
@@ -90,14 +97,18 @@ func (database *Database) SearchInVectorCache(userID, sessionID string, userQuer
 		return nil, -1, err
 	}
 
+	fmt.Println("TOTAL: ", total)
+
 	docs = make([]redisearch.Document, 0, len(res)-1)
 
 	skip := 2
 	scoreIdx := -1
 	fieldsIdx := 1
 	payloadIdx := 1
+
 	if len(res) > skip {
 		for i := 1; i < len(res); i += skip {
+			fmt.Println("i", i)
 			if d, e := redisearch.LoadDocument(res, i, scoreIdx, payloadIdx, fieldsIdx); e == nil {
 				docs = append(docs, d)
 			} else {

@@ -23,8 +23,10 @@ func GetChatResponse(database *services.Database, received *structures.UserMessa
 
 	var isNew bool = false
 	if err := database.CheckModelAccess(received.UserId, received.ModelId); err == redis.Nil {
+		fmt.Println("User Not Exists ..!!")
 		return errors.New(string(error_code.Error(error_code.ErrorCodeUserDoesNotExists)))
 	} else if err != nil {
+		fmt.Println("User dont have access ..!!")
 		return errors.New(string(error_code.Error(error_code.ErrorCodeUserDoesNotHaveModelAccess)))
 	}
 
@@ -55,12 +57,15 @@ func GetChatResponse(database *services.Database, received *structures.UserMessa
 		}
 	}
 
+	fmt.Println("Embedding Started")
 	// OpenAI Embedding For the user request and then retrive most relevent chats
 	embeddingRequest, err := api_call.ApiEmbedding(received.Message)
 	if err != nil {
 		return errors.New(string(error_code.Error(error_code.ErrorCodeUnableToCreateEmbedding)))
 	}
+	fmt.Println("Embedding Done")
 
+	fmt.Println("Search Started")
 	chats, _, err := database.SearchInVectorCache(received.UserId, sessionData.SessionId, embeddingRequest)
 	if err != nil {
 		return errors.New(string(error_code.Error(error_code.ErrorCodeUnableToSearchForEmbedding)))
