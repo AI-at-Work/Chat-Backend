@@ -1,6 +1,7 @@
 package services
 
 import (
+	"ai-chat/api_call"
 	"ai-chat/database/initialize"
 	"ai-chat/database/structures"
 	"ai-chat/sync_worker/worker"
@@ -20,18 +21,20 @@ import (
 )
 
 type Database struct {
-	Db     *sqlx.DB
-	Cache  *redis.Client
-	Stream *worker.StreamDataBase
-	Vector *redisearch.Client
+	Db        *sqlx.DB
+	Cache     *redis.Client
+	Stream    *worker.StreamDataBase
+	Vector    *redisearch.Client
+	AIService *api_call.AIClient
 }
 
 func GetDataBase() *Database {
 	return &Database{
-		Db:     initialize.InitPostgres(),
-		Cache:  initialize.InitRedis(),
-		Stream: worker.GetStreamDataBase(),
-		Vector: initialize.InitRedisChatVector(),
+		Db:        initialize.InitPostgres(),
+		Cache:     initialize.InitRedis(),
+		Stream:    worker.GetStreamDataBase(),
+		Vector:    initialize.InitRedisChatVector(),
+		AIService: api_call.InitAIClient(),
 	}
 }
 

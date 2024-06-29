@@ -57,23 +57,27 @@ func GetChatResponse(database *services.Database, received *structures.UserMessa
 		}
 	}
 
-	fmt.Println("Embedding Started")
-	// OpenAI Embedding For the user request and then retrive most relevent chats
-	embeddingRequest, err := api_call.ApiEmbedding(received.Message)
-	if err != nil {
-		return errors.New(string(error_code.Error(error_code.ErrorCodeUnableToCreateEmbedding)))
-	}
-	fmt.Println("Embedding Done")
-
-	fmt.Println("Search Started")
-	chats, _, err := database.SearchInVectorCache(received.UserId, sessionData.SessionId, embeddingRequest)
-	if err != nil {
-		return errors.New(string(error_code.Error(error_code.ErrorCodeUnableToSearchForEmbedding)))
-	}
-	fmt.Printf("\n\n\nSEARCH DOCS: ", chats)
+	//fmt.Println("Embedding Started")
+	//// OpenAI Embedding For the user request and then retrieve most relevant chats
+	//embeddingRequest, err := api_call.ApiEmbedding(received.Message)
+	//if err != nil {
+	//	return errors.New(string(error_code.Error(error_code.ErrorCodeUnableToCreateEmbedding)))
+	//}
+	//fmt.Println("Embedding Done")
+	//
+	//fmt.Println("Search Started")
+	//chats, _, err := database.SearchInVectorCache(received.UserId, sessionData.SessionId, embeddingRequest)
+	//if err != nil {
+	//	return errors.New(string(error_code.Error(error_code.ErrorCodeUnableToSearchForEmbedding)))
+	//}
+	//
+	//for i, doc := range chats {
+	//	fmt.Printf("%d. %s\n", i+1, doc.Properties["chat"])
+	//	fmt.Printf("%s\n\n", doc.Properties["vector_dist"])
+	//}
 
 	sessionData.Chats = append(sessionData.Chats, structures.Chat{"user", received.Message})
-	err = helper_functions.LimitTokenSize(&sessionData, model_data.ModelContextLength(sessionData.ModelId))
+	err := helper_functions.LimitTokenSize(&sessionData, model_data.ModelContextLength(sessionData.ModelId))
 	if err != nil {
 		return errors.New(string(error_code.Error(error_code.ErrorCodeUnableToTokenizeData)))
 	}
@@ -82,7 +86,7 @@ func GetChatResponse(database *services.Database, received *structures.UserMessa
 	fmt.Println("In OPEN AI ")
 
 	// OpenAI API Call
-	AiResponse, err := api_call.OpenAIApiCall(sessionData, received.FileName)
+	AiResponse, embeddingRequest, err := database.AIService.AIApiCall(received.UserId, sessionData.SessionId, received.Message, received.FileName, sessionData.Prompt, model_data.ModelNumberMapping[sessionData.ModelId])
 	if err != nil {
 		return errors.New(string(error_code.Error(error_code.ErrorCodeUnableToReceiveResponseToQuery)))
 	}
@@ -116,13 +120,13 @@ func GetChatResponse(database *services.Database, received *structures.UserMessa
 	}
 
 	var newConversion []structures.Chat
-	newConversion = append(newConversion, structures.Chat{"user", received.Message}, structures.Chat{"assistant", AiResponse})
+	newConversion = append(newConversion, structures.Chat{Role: "user", Content: received.Message}, structures.Chat{Role: "assistant", Content: AiResponse})
 	if received.FileName != "" {
-		sessionData.Chats = append(sessionData.Chats, structures.Chat{"assistant", AiResponse}, structures.Chat{"file", received.FileName})
-		newConversion = append(newConversion, structures.Chat{"file", received.FileName})
+		sessionData.Chats = append(sessionData.Chats, structures.Chat{Role: "assistant", Content: AiResponse}, structures.Chat{Role: "file", Content: received.FileName})
+		newConversion = append(newConversion, structures.Chat{Role: "file", Content: received.FileName})
 	} else {
 		// Load the changes in cache
-		sessionData.Chats = append(sessionData.Chats, structures.Chat{"assistant", AiResponse})
+		sessionData.Chats = append(sessionData.Chats, structures.Chat{Role: "assistant", Content: AiResponse})
 	}
 
 	newConversionStr, err := json.Marshal(newConversion)

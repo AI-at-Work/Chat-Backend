@@ -3,10 +3,8 @@ package services
 import (
 	"fmt"
 	"github.com/RediSearch/redisearch-go/v2/redisearch"
-	"github.com/gomodule/redigo/redis"
 	"github.com/google/uuid"
 	"github.com/redis/rueidis"
-	"log"
 	"os"
 	"strconv"
 	"strings"
@@ -63,59 +61,27 @@ func (database *Database) AddToVectorCache(userID, sessionID string, timestamp i
 }
 
 func (database *Database) SearchInVectorCache(userID, sessionID string, userQueryEmbedding []float32) (docs []redisearch.Document, total int, err error) {
-	//  FT.SEARCH user-chat:123123 "(@session_id:assdasd)=>[KNN 5 @chat_embeddings $vector AS vector_score]" PARAMS 2 vector "[0.2,0.3,0.4,...]" RETURN 3 session_id chat vector_score SORTBY vector_score DIALECT 2
-
 	maxLimit, _ := strconv.Atoi(os.Getenv("MAX_SEARCH_RESULTS_LIMIT"))
 	database.Vector.SetIndexName(fmt.Sprintf("%s:%s", os.Getenv("INDEX_NAME"), userID))
 	userQueryParsed := rueidis.VectorString32(userQueryEmbedding)
 
 	fmt.Println("MAX LIMIT:", maxLimit)
 
-	res, err := redis.Values(database.Vector.GetConnection().Do(
-		"FT.SEARCH", fmt.Sprintf("%s:%s", os.Getenv("INDEX_NAME"), userID),
-		fmt.Sprintf("@session_id:%s @chat_embeddings:[VECTOR_RANGE 0.2 $query_vector]=>{$YIELD_DISTANCE_AS: vector_dist}", sessionID),
-		"PARAMS", 2,
-		"query_vector", userQueryParsed,
-		"SORTBY", "vector_dist",
-		"LIMIT", "0", maxLimit,
-		"DIALECT", 2))
-
-	//res, err := redis.Values(database.Vector.GetConnection().Do(
-	//	"FT.SEARCH", fmt.Sprintf("%s:%s", os.Getenv("INDEX_NAME"), userID),
-	//	fmt.Sprintf("(@session_id:%s)=>[KNN %d @chat_embeddings $blob AS x]", sessionID, maxLimit),
-	//	"PARAMS", 2,
-	//	"blob", userQueryParsed,
-	//	"SORTBY", "x",
-	//	"LIMIT", "0", maxLimit,
-	//	"DIALECT", 2))
-	fmt.Println(err)
+	r := redisearch.Query{
+		Raw: fmt.Sprintf("@session_id:(%s)=>[KNN 10 @chat_embeddings $query_vector AS vector_dist]", sessionID),
+		Params: map[string]interface{}{
+			"query_vector": userQueryParsed,
+		},
+		Dialect: 2,
+		SortBy: &redisearch.SortingKey{
+			Field: "vector_dist",
+		},
+		ReturnFields: []string{"chat", "vector_dist"},
+	}
+	query := r.Limit(0, maxLimit)
+	docs, total, err = database.Vector.Search(query)
 	if err != nil {
-		return nil, -1, err
+		return nil, -1, fmt.Errorf("failed to perform search: %w", err)
 	}
-
-	if total, err = redis.Int(res[0], nil); err != nil {
-		return nil, -1, err
-	}
-
-	fmt.Println("TOTAL: ", total)
-
-	docs = make([]redisearch.Document, 0, len(res)-1)
-
-	skip := 2
-	scoreIdx := -1
-	fieldsIdx := 1
-	payloadIdx := 1
-
-	if len(res) > skip {
-		for i := 1; i < len(res); i += skip {
-			fmt.Println("i", i)
-			if d, e := redisearch.LoadDocument(res, i, scoreIdx, payloadIdx, fieldsIdx); e == nil {
-				docs = append(docs, d)
-			} else {
-				log.Print("Error parsing doc: ", e)
-			}
-		}
-	}
-
 	return
 }

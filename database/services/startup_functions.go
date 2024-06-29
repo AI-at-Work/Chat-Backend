@@ -132,19 +132,30 @@ func PopulateRedisCache(db *Database) error {
 			return fmt.Errorf("error parsing chats vector data: %w", err)
 		}
 
-		if len(chatsList) != len(vectorList) {
-			panic("Data Inconsistency Found ..!!. \n Len of chatList must be equal to vectorList")
-		}
-
 		fmt.Println("LEN : ", len(chatsList))
+		fmt.Println("LEN : ", len(vectorList))
 
-		for index, _ := range chatsList {
+		indexChat := 0
+		indexVector := 0
+		numFiles := 0
+		for indexChat < len(chatsList) {
+			fmt.Println("ROLE:", chatsList[indexChat].Role)
+			if chatsList[indexChat].Role == "file" {
+				indexChat++
+				numFiles++
+				continue
+			}
 			err := db.AddToVectorCache(userID, sessionID, time.Now().UnixMilli(), fmt.Sprintf("{\"role\":\"%s\", \"content\":\"%s\"}",
-				chatsList[index].Role, chatsList[index].Content), vectorList[index])
+				chatsList[indexChat].Role, chatsList[indexChat].Content), vectorList[indexVector])
 			if err != nil {
 				fmt.Println("ERRR: ", err)
 				return err
 			}
+			indexVector++
+			indexChat++
+		}
+		if indexChat-numFiles != indexVector {
+			panic("Data Inconsistency Found ..!!. \n Len of chatList must be equal to vectorList")
 		}
 	}
 	return nil
