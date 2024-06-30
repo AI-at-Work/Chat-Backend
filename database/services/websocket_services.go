@@ -11,7 +11,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/RediSearch/redisearch-go/v2/redisearch"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/redis/go-redis/v9"
@@ -24,7 +23,6 @@ type Database struct {
 	Db        *sqlx.DB
 	Cache     *redis.Client
 	Stream    *worker.StreamDataBase
-	Vector    *redisearch.Client
 	AIService *api_call.AIClient
 }
 
@@ -33,7 +31,6 @@ func GetDataBase() *Database {
 		Db:        initialize.InitPostgres(),
 		Cache:     initialize.InitRedis(),
 		Stream:    worker.GetStreamDataBase(),
-		Vector:    initialize.InitRedisChatVector(),
 		AIService: api_call.InitAIClient(),
 	}
 }
@@ -99,7 +96,7 @@ func (dataBase *Database) CreateNewSession(userId string, prompt string, modelId
 	return sessionId, nil
 }
 
-func (dataBase *Database) SetSessionValues(userId string, prompt string, modelId int, sessionId string, chats []structures.Chat) error {
+func (dataBase *Database) SetSessionValues(userId string, prompt string, modelId int, sessionId string, chats []structures.Chat, chatsSummary string) error {
 	chatsJSON, err := json.Marshal(chats)
 	if err != nil {
 		return err
@@ -111,6 +108,7 @@ func (dataBase *Database) SetSessionValues(userId string, prompt string, modelId
 		"model_id":       modelId,
 		"session_prompt": prompt,
 		"chats":          chatsJSON, // Start with an empty chats array
+		"chat_summary":   chatsSummary,
 	}
 
 	_, err = dataBase.Cache.HSet(context.Background(), key, sessionData).Result()
@@ -147,10 +145,11 @@ func (dataBase *Database) GetUserSessionData(userId string, sessionId string) (s
 
 	// Construct the session data structure
 	sessionData := structures.SessionData{
-		SessionId: sessionId,
-		ModelId:   modelId,
-		Prompt:    values["session_prompt"],
-		Chats:     chats,
+		SessionId:   sessionId,
+		ModelId:     modelId,
+		Prompt:      values["session_prompt"],
+		ChatSummary: values["chat_summary"],
+		Chats:       chats,
 	}
 
 	return sessionData, nil
@@ -244,4 +243,13 @@ func (dataBase *Database) GetAIModel() (structures.AIModelsResponse, error) {
 	sort.Strings(modelNames) // Sorting the slice to ensure the order is consistent
 	return structures.AIModelsResponse{Models: modelNames}, nil
 
+}
+
+func (database *Database) GetUpdatedSummary(existingSummary string, chat, modelName string) (string, error) {
+	chatSummary, err := database.AIService.ApiSummary(existingSummary, chat, modelName)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate new summary: %w", err)
+	}
+	fmt.Println("New Summary: ", chatSummary)
+	return chatSummary, nil
 }

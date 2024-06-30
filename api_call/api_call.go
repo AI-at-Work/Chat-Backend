@@ -39,9 +39,11 @@ func (c *AIClient) Close() {
 	c.conn.Close()
 }
 
-func (c *AIClient) AIApiCall(userId, sessionId, chat, fileName, modelName, sessionPrompt string) (string, []float32, error) {
+func (c *AIClient) AIApiCall(userId, sessionId, chat, fileName, sessionPrompt, chatSummary, modelName string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
+	defer func() {
+		cancel()
+	}()
 
 	r, err := c.client.Process(ctx, &pb.Request{
 		UserId:        userId,
@@ -50,12 +52,45 @@ func (c *AIClient) AIApiCall(userId, sessionId, chat, fileName, modelName, sessi
 		FileName:      fileName,
 		ModelName:     modelName,
 		SessionPrompt: sessionPrompt,
+		ChatSummary:   chatSummary,
 		Timestamp:     timestamppb.Now(),
 	})
 	if err != nil {
-		return "", nil, err
+		fmt.Println("API ERR: ", err)
+		return "", err
 	}
-	return r.GetResponseText(), r.EmbeddingsRequest, nil
+	return r.GetResponseText(), nil
+}
+
+func (c *AIClient) ApiSummary(summary, chats, model string) (string, error) {
+	apiKey := os.Getenv("OPENAI_API_KEY")
+
+	client := openai.NewClient(apiKey)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	prompt := GetSummaryPrompt(summary, chats)
+	fmt.Println("PROMPT: ", prompt)
+
+	// Determine the type of completion based on the model
+	chatReq := openai.ChatCompletionRequest{
+		Model: model,
+		Messages: []openai.ChatCompletionMessage{
+			{Role: "user", Content: prompt},
+		},
+	}
+	resp, err := client.CreateChatCompletion(ctx, chatReq)
+
+	if err != nil {
+		return "", fmt.Errorf("error creating summary: %w", err)
+	}
+
+	if len(resp.Choices) == 0 {
+		return "", fmt.Errorf("no summary found for the input")
+	}
+
+	newSummary := resp.Choices[0].Message.Content
+	return newSummary, nil
 }
 
 func ApiEmbedding(input string) ([]float32, error) {

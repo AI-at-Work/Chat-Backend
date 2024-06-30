@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"github.com/jmoiron/sqlx"
 	"strings"
-	"time"
 )
 
 func LoadAllModels(db *sqlx.DB) error {
@@ -63,11 +62,6 @@ func LoadAllUsers(db *Database) error {
 			return err
 		}
 
-		err = db.CreateChatSchemaInCache(userID)
-		if err != nil {
-			return err
-		}
-
 		fmt.Println("Loaded user:", userID)
 	}
 	return nil
@@ -75,7 +69,7 @@ func LoadAllUsers(db *Database) error {
 
 func PopulateRedisCache(db *Database) error {
 	query := `
-	SELECT sd.Session_Id, sd.Session_Name, sd.User_Id, sd.Model_Id, cd.Session_Prompt, cd.Chats, cd.Chats_Vector
+	SELECT sd.Session_Id, sd.Session_Name, sd.User_Id, sd.Model_Id, cd.Session_Prompt, cd.Chats, cd.Chats_Summary
 	FROM Session_Details sd
 	LEFT JOIN Chat_Details cd ON sd.Session_Id = cd.Session_Id ORDER BY sd.Created_At DESC
 	`
@@ -86,21 +80,21 @@ func PopulateRedisCache(db *Database) error {
 	defer rows.Close()
 
 	for rows.Next() {
-		var sessionIDTemp, sessionNameTemp, userIDTemp, modelIDTemp, sessionPromptTemp, chatsTemp, chatsVectorTemp sql.NullString
-		if err := rows.Scan(&sessionIDTemp, &sessionNameTemp, &userIDTemp, &modelIDTemp, &sessionPromptTemp, &chatsTemp, &chatsVectorTemp); err != nil {
+		var sessionIDTemp, sessionNameTemp, userIDTemp, modelIDTemp, sessionPromptTemp, chatsTemp, chatsSummaryTemp sql.NullString
+		if err := rows.Scan(&sessionIDTemp, &sessionNameTemp, &userIDTemp, &modelIDTemp, &sessionPromptTemp, &chatsTemp, &chatsSummaryTemp); err != nil {
 			return err
 		}
 
 		if !modelIDTemp.Valid || !sessionNameTemp.Valid || !userIDTemp.Valid || !sessionIDTemp.Valid {
 			continue
 		}
-		var sessionID, userID, modelID, sessionPrompt, chats, chatsVector, sessionName string
+		var sessionID, userID, modelID, sessionPrompt, chats, chatsSummary, sessionName string
 		sessionID = sessionIDTemp.String
 		userID = userIDTemp.String
 		modelID = modelIDTemp.String
 		sessionPrompt = sessionPromptTemp.String
 		chats = chatsTemp.String
-		chatsVector = chatsVectorTemp.String
+		chatsSummary = chatsSummaryTemp.String
 		sessionName = sessionNameTemp.String
 
 		// Redis key for storing session data
@@ -113,6 +107,7 @@ func PopulateRedisCache(db *Database) error {
 			"session_name":   sessionName,
 			"model_id":       modelID,
 			"session_prompt": sessionPrompt,
+			"chat_summary":   chatsSummary,
 			"chats":          chats,
 		}
 
@@ -125,37 +120,6 @@ func PopulateRedisCache(db *Database) error {
 		var chatsList []structures.Chat
 		if err := json.Unmarshal([]byte(chats), &chatsList); err != nil {
 			return fmt.Errorf("error parsing chats data: %w", err)
-		}
-
-		var vectorList [][]float32
-		if err := json.Unmarshal([]byte(chatsVector), &vectorList); err != nil {
-			return fmt.Errorf("error parsing chats vector data: %w", err)
-		}
-
-		fmt.Println("LEN : ", len(chatsList))
-		fmt.Println("LEN : ", len(vectorList))
-
-		indexChat := 0
-		indexVector := 0
-		numFiles := 0
-		for indexChat < len(chatsList) {
-			fmt.Println("ROLE:", chatsList[indexChat].Role)
-			if chatsList[indexChat].Role == "file" {
-				indexChat++
-				numFiles++
-				continue
-			}
-			err := db.AddToVectorCache(userID, sessionID, time.Now().UnixMilli(), fmt.Sprintf("{\"role\":\"%s\", \"content\":\"%s\"}",
-				chatsList[indexChat].Role, chatsList[indexChat].Content), vectorList[indexVector])
-			if err != nil {
-				fmt.Println("ERRR: ", err)
-				return err
-			}
-			indexVector++
-			indexChat++
-		}
-		if indexChat-numFiles != indexVector {
-			panic("Data Inconsistency Found ..!!. \n Len of chatList must be equal to vectorList")
 		}
 	}
 	return nil

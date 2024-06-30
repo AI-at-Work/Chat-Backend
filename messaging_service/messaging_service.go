@@ -1,7 +1,6 @@
 package messaging_service
 
 import (
-	"ai-chat/api_call"
 	"ai-chat/database/services"
 	"ai-chat/database/structures"
 	"ai-chat/utils/helper_functions"
@@ -14,8 +13,6 @@ import (
 	"fmt"
 	"github.com/gofiber/contrib/websocket"
 	"github.com/redis/go-redis/v9"
-	"strings"
-	"time"
 )
 
 func GetChatResponse(database *services.Database, received *structures.UserMessageRequest, messageType int, conn *websocket.Conn) error {
@@ -44,6 +41,7 @@ func GetChatResponse(database *services.Database, received *structures.UserMessa
 			SessionName: helper_functions.TruncateText(received.Message, 20),
 			SessionId:   sessionId,
 			Prompt:      received.Prompt,
+			ChatSummary: "",
 			Chats:       nil,
 		}
 		isNew = true
@@ -77,27 +75,30 @@ func GetChatResponse(database *services.Database, received *structures.UserMessa
 	//}
 
 	sessionData.Chats = append(sessionData.Chats, structures.Chat{"user", received.Message})
-	err := helper_functions.LimitTokenSize(&sessionData, model_data.ModelContextLength(sessionData.ModelId))
-	if err != nil {
-		return errors.New(string(error_code.Error(error_code.ErrorCodeUnableToTokenizeData)))
-	}
+	//err := helper_functions.LimitTokenSize(&sessionData, model_data.ModelContextLength(sessionData.ModelId))
+	//if err != nil {
+	//	return errors.New(string(error_code.Error(error_code.ErrorCodeUnableToTokenizeData)))
+	//}
 
 	fmt.Println(received)
 	fmt.Println("In OPEN AI ")
 
 	// OpenAI API Call
-	AiResponse, embeddingRequest, err := database.AIService.AIApiCall(received.UserId, sessionData.SessionId, received.Message, received.FileName, sessionData.Prompt, model_data.ModelNumberMapping[sessionData.ModelId])
+	AiResponse, err := database.AIService.AIApiCall(received.UserId, sessionData.SessionId,
+		received.Message, received.FileName, sessionData.Prompt, sessionData.ChatSummary, model_data.ModelNumberMapping[sessionData.ModelId])
 	if err != nil {
+		fmt.Println("HOHOJ")
 		return errors.New(string(error_code.Error(error_code.ErrorCodeUnableToReceiveResponseToQuery)))
 	}
 
-	embeddingResponse, err := api_call.ApiEmbedding(AiResponse)
-	if err != nil {
-		return errors.New(string(error_code.Error(error_code.ErrorCodeUnableToCreateEmbedding)))
-	}
+	//embeddingResponse, err := api_call.ApiEmbedding(AiResponse)
+	//if err != nil {
+	//	return errors.New(string(error_code.Error(error_code.ErrorCodeUnableToCreateEmbedding)))
+	//}
 
-	embedding := fmt.Sprintf("%s,%s", strings.Replace(fmt.Sprintf("%v", embeddingRequest), " ", ",", -1), strings.Replace(fmt.Sprintf("%v", embeddingResponse), " ", ",", -1))
-	fmt.Println("Final Embedding : ", embedding)
+	//embedding := fmt.Sprintf("%s,%s", strings.Replace(fmt.Sprintf("%v", embeddingRequest), " ", ",", -1),
+	//	strings.Replace(fmt.Sprintf("%v", embeddingResponse), " ", ",", -1))
+	//fmt.Println("Final Embedding : ", embedding)
 
 	data := structures.UserMessageResponse{
 		UserId:      received.UserId,
@@ -134,10 +135,10 @@ func GetChatResponse(database *services.Database, received *structures.UserMessa
 		return errors.New(string(error_code.Error(error_code.ErrorCodeJSONMarshal)))
 	}
 
-	_ = database.SetSessionValues(received.UserId, sessionData.Prompt, sessionData.ModelId, sessionData.SessionId, sessionData.Chats)
+	chatSummary, err := database.GetUpdatedSummary(sessionData.ChatSummary, fmt.Sprintf("User: %s\n\nAssistant: %s", received.Message, AiResponse), model_data.ModelNumberMapping[sessionData.ModelId])
+	_ = database.SetSessionValues(received.UserId, sessionData.Prompt, sessionData.ModelId, sessionData.SessionId, sessionData.Chats, chatSummary)
 
-	_ = database.AddToVectorCache(received.UserId, sessionData.SessionId, time.Now().UnixMilli(), fmt.Sprintf("{\"role\":\"user\", \"content\":\"%s\"}", received.Message), embeddingRequest)
-	_ = database.AddToVectorCache(received.UserId, sessionData.SessionId, time.Now().UnixMilli(), fmt.Sprintf("{\"role\":\"assistant\", \"content\":\"%s\"}", AiResponse), embeddingResponse)
+	fmt.Println("ERROR: ", err)
 
 	_ = database.Stream.AddToStream(
 		context.Background(),
@@ -146,7 +147,7 @@ func GetChatResponse(database *services.Database, received *structures.UserMessa
 		fmt.Sprintf("%d", sessionData.ModelId),
 		sessionData.Prompt,
 		string(newConversionStr),
-		embedding,
+		chatSummary,
 		sessionData.SessionName,
 		isNew)
 	return err

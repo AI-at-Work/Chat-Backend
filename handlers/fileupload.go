@@ -117,16 +117,17 @@ func fileUploadForNewSession(database *services.Database, userId string, modelId
 		SessionName: helper_functions.TruncateText("New Chat", 20),
 		SessionId:   sessionId,
 		Prompt:      sessionPrompt,
+		ChatSummary: "",
 		Chats:       nil,
 	}
 
-	_ = database.SetSessionValues(userId, sessionData.Prompt, sessionData.ModelId, sessionData.SessionId, sessionData.Chats)
+	_ = database.SetSessionValues(userId, sessionData.Prompt, sessionData.ModelId, sessionData.SessionId, sessionData.Chats, sessionData.ChatSummary)
 	err = database.AddSession(context.Background(), userId, sessionId, modelId, sessionData.SessionName)
 	if err != nil {
 		return "", errors.New(string(error_code.Error(error_code.ErrorCodeUnableToCreateSession)))
 	}
 
-	err = database.AddChat(context.Background(), sessionId, sessionPrompt, "[]")
+	err = database.AddChat(context.Background(), sessionId, sessionPrompt, "[]", sessionData.ChatSummary)
 	if err != nil {
 		return "", errors.New(string(error_code.Error(error_code.ErrorCodeUnableToCreateSession)))
 	}

@@ -2,8 +2,6 @@ package initialize
 
 import (
 	"fmt"
-	"github.com/RediSearch/redisearch-go/v2/redisearch"
-	redisPool "github.com/gomodule/redigo/redis"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 	"github.com/redis/go-redis/v9"
@@ -39,20 +37,4 @@ func InitPostgres() *sqlx.DB {
 	}
 
 	return db
-}
-
-func InitRedisChatVector() *redisearch.Client {
-	dbName, _ := strconv.Atoi(os.Getenv("REDIS_DB"))
-
-	pool := &redisPool.Pool{
-		Dial: func() (redisPool.Conn, error) {
-			return redisPool.Dial("tcp", os.Getenv("REDIS_ADDRESS"),
-				redisPool.DialPassword(os.Getenv("REDIS_PASSWORD")),
-				redisPool.DialDatabase(dbName),
-			)
-		},
-	}
-
-	client := redisearch.NewClientFromPool(pool, "chat")
-	return client
 }

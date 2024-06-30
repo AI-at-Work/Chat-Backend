@@ -110,7 +110,7 @@ func (dataBase *Database) AddSession(ctx context.Context, userId string, session
 	return nil
 }
 
-func (dataBase *Database) AddChat(ctx context.Context, sessionId string, prompt string, chats string) error {
+func (dataBase *Database) AddChat(ctx context.Context, sessionId string, prompt string, chats string, chatSummary string) error {
 	var query string
 	var rows sql.Result
 	var err error = nil
@@ -129,8 +129,8 @@ func (dataBase *Database) AddChat(ctx context.Context, sessionId string, prompt 
 		}
 	}()
 
-	query = `INSERT INTO Chat_Details (Session_Id, Session_Prompt, Chats) VALUES ($1, $2, $3::JSONB)`
-	rows, err = tx.ExecContext(ctx, query, sessionId, prompt, chats)
+	query = `INSERT INTO Chat_Details (Session_Id, Session_Prompt, Chats, Chats_Summary) VALUES ($1, $2, $3::JSONB, $4)`
+	rows, err = tx.ExecContext(ctx, query, sessionId, prompt, chats, chatSummary)
 
 	if err != nil {
 		fmt.Println(err)

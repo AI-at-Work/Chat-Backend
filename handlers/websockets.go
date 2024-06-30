@@ -76,5 +76,10 @@ func NewConnection(conn *websocket.Conn, database *services.Database) {
 			sendErrorOverWebSocket(conn, string(error_code.Error(error_code.ErrorCodeUnknownMessage)))
 			return
 		}
+
+		if err != nil {
+			fmt.Println("Connection Closed ..!!")
+			sendErrorOverWebSocket(conn, err.Error())
+		}
 	}
 }

@@ -87,6 +87,7 @@ type SessionData struct {
 	SessionName string `json:"session_name" db:"session_name"`
 	ModelId     int    `json:"model_id" db:"model_id"`
 	Prompt      string `json:"session_prompt" db:"session_prompt"`
+	ChatSummary string `json:"chat_summary" db:"chat_summary"`
 	Chats       []Chat `json:"chats" db:"chats"`
 }
 

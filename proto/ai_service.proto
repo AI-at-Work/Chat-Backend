@@ -20,12 +20,12 @@ message Request {
   string model_name = 4;  // The files to process
   string session_prompt = 5;  // The files to process
   string file_name = 6;  // The files to process
-  google.protobuf.Timestamp timestamp = 7;  // Timestamp of the request
+  string chat_summary = 7;  // The files to process
+  google.protobuf.Timestamp timestamp = 8;  // Timestamp of the request
 }
 
 // The response message containing the server's response.
 message Response {
   string response_text = 1;  // The server's response to the chat
-  repeated float embeddings_request = 2;  // The server's response to the chat
   google.protobuf.Timestamp timestamp = 3;  // Timestamp of the response
 }

@@ -41,7 +41,7 @@ services:
     ports:
       - "6379:6379"
     volumes:
-     - ./docker_compose_storage/redis-data:/data
+      - ./docker_compose_storage/redis-data:/data
     env_file:
       - .env
     environment:
