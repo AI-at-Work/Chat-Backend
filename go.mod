@@ -1,19 +1,16 @@
 module ai-chat
 
-go 1.22.3
+go 1.19
 
 require (
-	github.com/RediSearch/redisearch-go/v2 v2.1.1
 	github.com/gofiber/contrib/websocket v1.3.1
 	github.com/gofiber/fiber/v2 v2.52.4
 	github.com/golang/protobuf v1.5.4
-	github.com/gomodule/redigo v1.9.2
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
 	github.com/lib/pq v1.10.9
 	github.com/pkoukk/tiktoken-go v0.1.7
 	github.com/redis/go-redis/v9 v9.5.1
-	github.com/redis/rueidis v1.0.39
 	github.com/sashabaranov/go-openai v1.26.0
 	google.golang.org/grpc v1.64.0
 	google.golang.org/protobuf v1.34.2
