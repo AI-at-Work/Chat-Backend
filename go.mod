@@ -46,5 +46,3 @@ require (
 	github.com/gobwas/ws v1.4.0
 	github.com/jmoiron/sqlx v1.4.0
 )
-
-replace github.com/RediSearch/redisearch-go/v2 v2.1.1 => /home/sumit/SHITIJ/redisearch-go-master/redisearch-go-master/
