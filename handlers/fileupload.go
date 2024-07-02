@@ -123,7 +123,7 @@ func fileUpload(c *fiber.Ctx, database *services.Database) error {
 	}
 
 	return c.Status(fiber.StatusAccepted).JSON(fiber.Map{
-		"message": "Image uploaded successfully",
+		"message": "File uploaded successfully",
 		"data":    data,
 	})
 }
