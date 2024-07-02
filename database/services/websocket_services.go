@@ -76,19 +76,32 @@ func (dataBase *Database) GetUserDetails(userId string) (*structures.UserDataRes
 	return &data, nil
 }
 
-func (dataBase *Database) CreateNewSession(userId string, prompt string, modelId int) (string, error) {
+func (dataBase *Database) CreateNewSession(userId string, sessionData structures.SessionData) (string, error) {
 	// Generate a new UUID for the session
 	sessionId := uuid.New().String()
 
-	// Update Redis with the new session information
-	key := fmt.Sprintf("user:%s:session:%s", userId, sessionId)
-	sessionData := map[string]interface{}{
-		"model_id":       modelId,
-		"session_prompt": prompt,
-		"chats":          "[]", // Start with an empty chats array
+	chatsJSON, err := json.Marshal(sessionData.Chats)
+	if err != nil {
+		return "", err
 	}
 
-	_, err := dataBase.Cache.HSet(context.Background(), key, sessionData).Result()
+	fileNameJSON, err := json.Marshal(sessionData.FileName)
+	if err != nil {
+		return "", err
+	}
+
+	// Update Redis with the new session information
+	key := fmt.Sprintf("user:%s:session:%s", userId, sessionId)
+	data := map[string]interface{}{
+		"model_id":       sessionData.ModelId,
+		"session_prompt": sessionData.Prompt,
+		"chats":          "[]", // Start with an empty chats array
+		"session_name":   sessionData.SessionName,
+		"chat_summary":   chatsJSON,
+		"file_name":      fileNameJSON,
+	}
+
+	_, err = dataBase.Cache.HSet(context.Background(), key, data).Result()
 	if err != nil {
 		return "", err
 	}
@@ -96,25 +109,47 @@ func (dataBase *Database) CreateNewSession(userId string, prompt string, modelId
 	return sessionId, nil
 }
 
-func (dataBase *Database) SetSessionValues(userId string, prompt string, modelId int, sessionId string, chats []structures.Chat, chatsSummary string) error {
-	chatsJSON, err := json.Marshal(chats)
+func (dataBase *Database) SetSessionValues(userId string, sessionData structures.SessionData) error {
+	chatsJSON, err := json.Marshal(sessionData.Chats)
+	if err != nil {
+		return err
+	}
+
+	fileNameJSON, err := json.Marshal(sessionData.FileName)
 	if err != nil {
 		return err
 	}
 
 	// Update Redis with the new session information
-	key := fmt.Sprintf("user:%s:session:%s", userId, sessionId)
-	sessionData := map[string]interface{}{
-		"model_id":       modelId,
-		"session_prompt": prompt,
+	key := fmt.Sprintf("user:%s:session:%s", userId, sessionData.SessionId)
+	data := map[string]interface{}{
+		"session_name":   sessionData.SessionName,
+		"model_id":       sessionData.ModelId,
+		"session_prompt": sessionData.Prompt,
 		"chats":          chatsJSON, // Start with an empty chats array
-		"chat_summary":   chatsSummary,
+		"chat_summary":   sessionData.ChatSummary,
+		"file_name":      fileNameJSON,
 	}
 
-	_, err = dataBase.Cache.HSet(context.Background(), key, sessionData).Result()
+	_, err = dataBase.Cache.HSet(context.Background(), key, data).Result()
 	if err != nil {
 		return err
 	}
+	return nil
+}
+
+func (dataBase *Database) AddNewFileInSessionData(userId string, sessionId string, fileName string) error {
+	sessionData, err := dataBase.GetUserSessionData(userId, sessionId)
+	if err != nil {
+		return err
+	}
+
+	sessionData.FileName = append(sessionData.FileName, fileName)
+	err = dataBase.SetSessionValues(userId, sessionData)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -138,6 +173,11 @@ func (dataBase *Database) GetUserSessionData(userId string, sessionId string) (s
 		return structures.SessionData{}, fmt.Errorf("error parsing chats data: %w", err)
 	}
 
+	var fileName []string
+	if err := json.Unmarshal([]byte(values["file_name"]), &fileName); err != nil {
+		return structures.SessionData{}, fmt.Errorf("error parsing file_name data: %w", err)
+	}
+
 	modelId, err := strconv.Atoi(values["model_id"])
 	if err != nil {
 		return structures.SessionData{}, fmt.Errorf("error parsing modelId: %w", err)
@@ -145,10 +185,12 @@ func (dataBase *Database) GetUserSessionData(userId string, sessionId string) (s
 
 	// Construct the session data structure
 	sessionData := structures.SessionData{
+		SessionName: values["session_name"],
 		SessionId:   sessionId,
 		ModelId:     modelId,
 		Prompt:      values["session_prompt"],
 		ChatSummary: values["chat_summary"],
+		FileName:    fileName,
 		Chats:       chats,
 	}
 
@@ -250,6 +292,5 @@ func (database *Database) GetUpdatedSummary(existingSummary string, chat, modelN
 	if err != nil {
 		return "", fmt.Errorf("failed to generate new summary: %w", err)
 	}
-	fmt.Println("New Summary: ", chatSummary)
 	return chatSummary, nil
 }

@@ -39,7 +39,7 @@ func (c *AIClient) Close() {
 	c.conn.Close()
 }
 
-func (c *AIClient) AIApiCall(userId, sessionId, chat, fileName, sessionPrompt, chatSummary, modelName string) (string, error) {
+func (c *AIClient) AIApiCall(userId, sessionId, chat string, fileName []string, sessionPrompt, chatSummary, modelName string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer func() {
 		cancel()
@@ -70,7 +70,6 @@ func (c *AIClient) ApiSummary(summary, chats, model string) (string, error) {
 	defer cancel()
 
 	prompt := GetSummaryPrompt(summary, chats)
-	fmt.Println("PROMPT: ", prompt)
 
 	// Determine the type of completion based on the model
 	chatReq := openai.ChatCompletionRequest{

@@ -83,12 +83,20 @@ type Vector struct {
 }
 
 type SessionData struct {
-	SessionId   string `json:"session_id" db:"session_id"`
-	SessionName string `json:"session_name" db:"session_name"`
-	ModelId     int    `json:"model_id" db:"model_id"`
-	Prompt      string `json:"session_prompt" db:"session_prompt"`
-	ChatSummary string `json:"chat_summary" db:"chat_summary"`
-	Chats       []Chat `json:"chats" db:"chats"`
+	SessionId   string   `json:"session_id" db:"session_id"`
+	SessionName string   `json:"session_name" db:"session_name"`
+	ModelId     int      `json:"model_id" db:"model_id"`
+	Prompt      string   `json:"session_prompt" db:"session_prompt"`
+	ChatSummary string   `json:"chat_summary" db:"chat_summary"`
+	FileName    []string `json:"file_name" db:"file_name"`
+	Chats       []Chat   `json:"chats" db:"chats"`
+}
+
+type FormData struct {
+	SessionId string `json:"session_id" db:"session_id"`
+	ModelId   string `json:"model_id" db:"model_id"`
+	Prompt    string `json:"session_prompt" db:"session_prompt"`
+	UserId    string `json:"user_id" db:"user_id"`
 }
 
 type SessionInfo struct {

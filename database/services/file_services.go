@@ -6,12 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gofiber/fiber/v2"
+	"github.com/lib/pq"
 	"log"
 	"mime/multipart"
 	"os"
 )
 
-func (dataBase *Database) SaveFile(conn *fiber.Ctx, sessionId string, fileName string, file *multipart.FileHeader) error {
+func (dataBase *Database) SaveFile(conn *fiber.Ctx, sessionId string, fileName string, isNew string, file *multipart.FileHeader) error {
 	var query string
 	var err error
 
@@ -26,18 +27,25 @@ func (dataBase *Database) SaveFile(conn *fiber.Ctx, sessionId string, fileName s
 		}
 	}()
 
-	// save image to ./images dir
-	err = conn.SaveFile(file, fmt.Sprintf("./%s/images/%s", os.Getenv("PUBLIC_DIR"), fileName))
+	// save image to public dir
+	err = conn.SaveFile(file, fmt.Sprintf("./%s/%s", os.Getenv("PUBLIC_DIR"), fileName))
 	if err != nil {
 		log.Println("image save error --> ", err)
 		return conn.JSON(fiber.Map{"status": 500, "message": "Server error", "data": nil})
 	}
 
+	fmt.Println("Adding Files By: ", isNew)
+
 	// Prepare the SQL query using named parameters
-	query = `INSERT INTO File_Data (Session_Id, File_Name) VALUES (:session_id, :file_name)`
+	if isNew == "NEW" {
+		query = `INSERT INTO File_Data (Session_Id, File_Name) VALUES (:session_id, :file_name)`
+	} else {
+		query = `UPDATE File_Data SET File_Name = File_Name || :file_name WHERE Session_Id = :session_id`
+	}
+
 	params := map[string]interface{}{
 		"session_id": sessionId,
-		"file_name":  fileName,
+		"file_name":  pq.Array([]string{fileName}),
 	}
 
 	// Execute the query

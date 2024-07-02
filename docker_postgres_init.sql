@@ -39,7 +39,7 @@ BEGIN
     IF NOT EXISTS (SELECT * FROM information_schema.tables WHERE table_name = 'file_data') THEN
         CREATE TABLE File_Data (
            Session_Id UUID NOT NULL,
-           File_Name VARCHAR(255) NOT NULL,
+           File_Name TEXT[] NOT NULL,
            Created_At TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
            FOREIGN KEY (Session_Id) REFERENCES Session_Details(Session_Id) ON DELETE CASCADE
         );

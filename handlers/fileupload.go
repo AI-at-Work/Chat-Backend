@@ -12,9 +12,12 @@ import (
 	"github.com/google/uuid"
 	"log"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
+
+const convertTOMB = 1024 * 1024 // 10 MB
 
 // WebsocketHandler sets up the WebSocket route
 func FileUploadHandler(url string, app *fiber.App, database *services.Database) {
@@ -23,75 +26,98 @@ func FileUploadHandler(url string, app *fiber.App, database *services.Database) 
 	})
 }
 
+func generateUniqueFileName(originalFileName string) string {
+	uniqueID := uuid.New().String()
+	fileExt := filepath.Ext(originalFileName)
+	return fmt.Sprintf("%s%s", strings.ReplaceAll(uniqueID, "-", ""), fileExt)
+}
+
 func fileUpload(c *fiber.Ctx, database *services.Database) error {
 	fmt.Println("File Upload")
 
-	// Extract session ID from form value
-	sessionId := c.FormValue("session_id")
-	if sessionId == "" {
+	formData, err := validateAndExtractFormData(c)
+	if err != nil {
+		fmt.Println("File Upload Error", formData, err)
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"message": "Session ID is required",
+			"message": err.Error(),
 			"data":    nil,
 		})
 	}
 
-	fmt.Println("FILE UPLOAD :  ", c.FormValue("user_id"), c.FormValue("model_id"), c.FormValue("session_prompt"))
+	// parse incoming image file
+	file, err := c.FormFile("file")
+	if err != nil {
+		log.Println("upload error --> ", err)
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"message": "Server error",
+			"data":    nil,
+		})
+	}
 
-	if sessionId == "NEW" {
+	maxFileSize, _ := strconv.Atoi(os.Getenv("MAX_FILE_SIZE"))
+	if file.Size > int64(convertTOMB*maxFileSize) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"message": "File size exceeds the maximum limit of 10 MB",
+			"data":    nil,
+		})
+	}
+
+	fileName := generateUniqueFileName(file.Filename)
+	log.Printf("File Upload: UserID: %s, SessionID: %s, ModelID: %s, Prompt: %s\n",
+		formData.UserId, formData.SessionId, formData.ModelId, formData.Prompt)
+
+	var allSessionFiles []string
+	if formData.SessionId == "NEW" {
 		var err error
-		sessionId, err = fileUploadForNewSession(database, c.FormValue("user_id"), c.FormValue("model_id"), c.FormValue("session_prompt"))
+		formData.SessionId, err = fileUploadForNewSession(database, formData.UserId, formData.ModelId, formData.Prompt, fileName)
 		if err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 				"message": "Unable To Create New Session",
 				"data":    nil,
 			})
 		}
+	} else {
+		sessionData, err := database.GetUserSessionData(formData.UserId, formData.SessionId)
+		if err != nil {
+			return err
+		}
+
+		err = database.AddNewFileInSessionData(formData.UserId, formData.SessionId, fileName)
+		if err != nil {
+			log.Println("cache save error --> ", err)
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"message": "Server error",
+				"data":    nil,
+			})
+		}
+
+		allSessionFiles = sessionData.FileName
 	}
 
-	fmt.Println("session_id: ", sessionId)
+	isNew := "OLD"
+	if len(allSessionFiles) == 0 {
+		isNew = "NEW"
+	}
 
-	// parse incoming image file
-	file, err := c.FormFile("file")
+	fmt.Println("session_id: ", formData.SessionId)
+	err = database.SaveFile(c, formData.SessionId, fileName, isNew, file)
 	if err != nil {
-		log.Println("image upload error --> ", err)
+		log.Println("save error --> ", err)
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"message": "Server error",
 			"data":    nil,
 		})
 	}
-
-	// generate new uuid for image name
-	uniqueId := uuid.New()
-
-	// remove "- from imageName"
-	filename := strings.Replace(uniqueId.String(), "-", "", -1)
-
-	// extract image extension from original file filename
-	fileSplit := strings.Split(file.Filename, ".")
-	fileExt := fileSplit[len(fileSplit)-1]
-
-	// generate image from filename and extension
-	fileName := fmt.Sprintf("%s.%s", filename, fileExt)
-
-	err = database.SaveFile(c, sessionId, fileName, file)
-	if err != nil {
-		log.Println("image save error --> ", err)
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"message": "Server error",
-			"data":    nil,
-		})
-	}
-
 	fmt.Println("File Saved ..!!")
 
 	// generate image url to serve to client using CDN
-	imageUrl := fmt.Sprintf("http://%s/%s/images/%s", os.Getenv("SERVER_ADDRESS"), os.Getenv("PUBLIC_DIR"), fileName)
+	fileUrl := fmt.Sprintf("http://%s/%s/%s", os.Getenv("SERVER_ADDRESS"), os.Getenv("PUBLIC_DIR"), fileName)
 
 	// create metadata and send to client
 	data := map[string]interface{}{
 		"fileName":  fileName,
-		"sessionId": sessionId,
-		"imageUrl":  imageUrl,
+		"sessionId": formData.SessionId,
+		"imageUrl":  fileUrl,
 		"header":    file.Header,
 		"size":      file.Size,
 	}
@@ -102,26 +128,26 @@ func fileUpload(c *fiber.Ctx, database *services.Database) error {
 	})
 }
 
-func fileUploadForNewSession(database *services.Database, userId string, modelId string, sessionPrompt string) (string, error) {
+func fileUploadForNewSession(database *services.Database, userId string, modelId string, sessionPrompt, fileName string) (string, error) {
 	modelIdInt, err := strconv.Atoi(modelId)
 	if err != nil {
 		return "", errors.New(string(error_code.Error(error_code.ErrorCodeUnableToCreateSession)))
 	}
 
-	sessionId, err := database.CreateNewSession(userId, sessionPrompt, modelIdInt)
-	if err != nil {
-		return "", errors.New(string(error_code.Error(error_code.ErrorCodeUnableToCreateSession)))
-	}
 	sessionData := structures.SessionData{
 		ModelId:     modelIdInt,
 		SessionName: helper_functions.TruncateText("New Chat", 20),
-		SessionId:   sessionId,
 		Prompt:      sessionPrompt,
 		ChatSummary: "",
+		FileName:    []string{fileName},
 		Chats:       nil,
 	}
+	sessionId, err := database.CreateNewSession(userId, sessionData)
+	if err != nil {
+		return "", errors.New(string(error_code.Error(error_code.ErrorCodeUnableToCreateSession)))
+	}
+	sessionData.SessionId = sessionId
 
-	_ = database.SetSessionValues(userId, sessionData.Prompt, sessionData.ModelId, sessionData.SessionId, sessionData.Chats, sessionData.ChatSummary)
 	err = database.AddSession(context.Background(), userId, sessionId, modelId, sessionData.SessionName)
 	if err != nil {
 		return "", errors.New(string(error_code.Error(error_code.ErrorCodeUnableToCreateSession)))
@@ -133,4 +159,25 @@ func fileUploadForNewSession(database *services.Database, userId string, modelId
 	}
 
 	return sessionId, err
+}
+
+func validateAndExtractFormData(c *fiber.Ctx) (*structures.FormData, error) {
+	formData := &structures.FormData{
+		SessionId: c.FormValue("session_id"),
+		UserId:    c.FormValue("user_id"),
+		Prompt:    c.FormValue("session_prompt"),
+		ModelId:   c.FormValue("model_id"),
+	}
+
+	if formData.SessionId == "" {
+		return nil, errors.New("session ID is required")
+	}
+	if formData.UserId == "" {
+		return nil, errors.New("user ID is required")
+	}
+	if formData.ModelId == "" {
+		return nil, errors.New("model ID is required")
+	}
+
+	return formData, nil
 }

@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/jmoiron/sqlx"
+	"github.com/lib/pq"
 	"strings"
 )
 
@@ -29,7 +30,7 @@ func LoadAllModels(db *sqlx.DB) error {
 }
 
 func LoadAllUsers(db *Database) error {
-	query := `SELECT User_Id, UserName, Models FROM User_Data`
+	query := `SELECT User_Id, UserName, Models FROM User_Data;`
 	rows, err := db.Db.Query(query)
 	if err != nil {
 		return err
@@ -69,9 +70,11 @@ func LoadAllUsers(db *Database) error {
 
 func PopulateRedisCache(db *Database) error {
 	query := `
-	SELECT sd.Session_Id, sd.Session_Name, sd.User_Id, sd.Model_Id, cd.Session_Prompt, cd.Chats, cd.Chats_Summary
-	FROM Session_Details sd
-	LEFT JOIN Chat_Details cd ON sd.Session_Id = cd.Session_Id ORDER BY sd.Created_At DESC
+	SELECT sd.Session_Id, sd.Session_Name, sd.User_Id, sd.Model_Id, cd.Session_Prompt, cd.Chats, cd.Chats_Summary, fd.File_Name
+	FROM Session_Details sd 
+	LEFT JOIN Chat_Details cd ON sd.Session_Id = cd.Session_Id 
+	LEFT JOIN File_Data fd ON sd.Session_Id = fd.Session_Id
+	ORDER BY sd.Created_At DESC
 	`
 	rows, err := db.Db.Query(query)
 	if err != nil {
@@ -81,7 +84,8 @@ func PopulateRedisCache(db *Database) error {
 
 	for rows.Next() {
 		var sessionIDTemp, sessionNameTemp, userIDTemp, modelIDTemp, sessionPromptTemp, chatsTemp, chatsSummaryTemp sql.NullString
-		if err := rows.Scan(&sessionIDTemp, &sessionNameTemp, &userIDTemp, &modelIDTemp, &sessionPromptTemp, &chatsTemp, &chatsSummaryTemp); err != nil {
+		var fileName []string
+		if err := rows.Scan(&sessionIDTemp, &sessionNameTemp, &userIDTemp, &modelIDTemp, &sessionPromptTemp, &chatsTemp, &chatsSummaryTemp, pq.Array(&fileName)); err != nil {
 			return err
 		}
 
@@ -102,16 +106,22 @@ func PopulateRedisCache(db *Database) error {
 
 		fmt.Println("DATA: ", sessionID, sessionPrompt, chats)
 
+		fileNameJSON, err := json.Marshal(fileName)
+		if err != nil {
+			return err
+		}
+
 		// Redis hash fields
 		sessionData := map[string]interface{}{
 			"session_name":   sessionName,
 			"model_id":       modelID,
 			"session_prompt": sessionPrompt,
 			"chat_summary":   chatsSummary,
+			"file_name":      fileNameJSON,
 			"chats":          chats,
 		}
 
-		_, err := db.Cache.HSet(context.Background(), key, sessionData).Result()
+		_, err = db.Cache.HSet(context.Background(), key, sessionData).Result()
 		if err != nil {
 			return err
 		}

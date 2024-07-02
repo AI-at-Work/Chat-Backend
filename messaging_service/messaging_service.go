@@ -16,7 +16,8 @@ import (
 )
 
 func GetChatResponse(database *services.Database, received *structures.UserMessageRequest, messageType int, conn *websocket.Conn) error {
-	fmt.Println("File Name: ", received.FileName)
+	fmt.Println("Received File Name: ", received.FileName)
+	fmt.Println("Received Session Id: ", received.SessionId)
 
 	var isNew bool = false
 	if err := database.CheckModelAccess(received.UserId, received.ModelId); err == redis.Nil {
@@ -32,18 +33,20 @@ func GetChatResponse(database *services.Database, received *structures.UserMessa
 	var sessionData structures.SessionData
 	if received.SessionId == "NEW" {
 		// create the session
-		sessionId, err := database.CreateNewSession(received.UserId, received.Prompt, received.ModelId)
-		if err != nil {
-			return errors.New(string(error_code.Error(error_code.ErrorCodeUnableToCreateSession)))
-		}
 		sessionData = structures.SessionData{
 			ModelId:     received.ModelId,
 			SessionName: helper_functions.TruncateText(received.Message, 20),
-			SessionId:   sessionId,
 			Prompt:      received.Prompt,
+			FileName:    nil,
 			ChatSummary: "",
 			Chats:       nil,
 		}
+		sessionId, err := database.CreateNewSession(received.UserId, sessionData)
+		if err != nil {
+			return errors.New(string(error_code.Error(error_code.ErrorCodeUnableToCreateSession)))
+		}
+		sessionData.SessionId = sessionId
+
 		isNew = true
 		fmt.Println("ADDED TO NEW SESSION")
 
@@ -55,50 +58,18 @@ func GetChatResponse(database *services.Database, received *structures.UserMessa
 		}
 	}
 
-	//fmt.Println("Embedding Started")
-	//// OpenAI Embedding For the user request and then retrieve most relevant chats
-	//embeddingRequest, err := api_call.ApiEmbedding(received.Message)
-	//if err != nil {
-	//	return errors.New(string(error_code.Error(error_code.ErrorCodeUnableToCreateEmbedding)))
-	//}
-	//fmt.Println("Embedding Done")
-	//
-	//fmt.Println("Search Started")
-	//chats, _, err := database.SearchInVectorCache(received.UserId, sessionData.SessionId, embeddingRequest)
-	//if err != nil {
-	//	return errors.New(string(error_code.Error(error_code.ErrorCodeUnableToSearchForEmbedding)))
-	//}
-	//
-	//for i, doc := range chats {
-	//	fmt.Printf("%d. %s\n", i+1, doc.Properties["chat"])
-	//	fmt.Printf("%s\n\n", doc.Properties["vector_dist"])
-	//}
-
+	fmt.Println("SESSION ID: ", sessionData.SessionId)
 	sessionData.Chats = append(sessionData.Chats, structures.Chat{"user", received.Message})
-	//err := helper_functions.LimitTokenSize(&sessionData, model_data.ModelContextLength(sessionData.ModelId))
-	//if err != nil {
-	//	return errors.New(string(error_code.Error(error_code.ErrorCodeUnableToTokenizeData)))
-	//}
 
 	fmt.Println(received)
 	fmt.Println("In OPEN AI ")
 
 	// OpenAI API Call
 	AiResponse, err := database.AIService.AIApiCall(received.UserId, sessionData.SessionId,
-		received.Message, received.FileName, sessionData.Prompt, sessionData.ChatSummary, model_data.ModelNumberMapping[sessionData.ModelId])
+		received.Message, sessionData.FileName, sessionData.Prompt, sessionData.ChatSummary, model_data.ModelNumberMapping[sessionData.ModelId])
 	if err != nil {
-		fmt.Println("HOHOJ")
 		return errors.New(string(error_code.Error(error_code.ErrorCodeUnableToReceiveResponseToQuery)))
 	}
-
-	//embeddingResponse, err := api_call.ApiEmbedding(AiResponse)
-	//if err != nil {
-	//	return errors.New(string(error_code.Error(error_code.ErrorCodeUnableToCreateEmbedding)))
-	//}
-
-	//embedding := fmt.Sprintf("%s,%s", strings.Replace(fmt.Sprintf("%v", embeddingRequest), " ", ",", -1),
-	//	strings.Replace(fmt.Sprintf("%v", embeddingResponse), " ", ",", -1))
-	//fmt.Println("Final Embedding : ", embedding)
 
 	data := structures.UserMessageResponse{
 		UserId:      received.UserId,
@@ -135,10 +106,8 @@ func GetChatResponse(database *services.Database, received *structures.UserMessa
 		return errors.New(string(error_code.Error(error_code.ErrorCodeJSONMarshal)))
 	}
 
-	chatSummary, err := database.GetUpdatedSummary(sessionData.ChatSummary, fmt.Sprintf("User: %s\n\nAssistant: %s", received.Message, AiResponse), model_data.ModelNumberMapping[sessionData.ModelId])
-	_ = database.SetSessionValues(received.UserId, sessionData.Prompt, sessionData.ModelId, sessionData.SessionId, sessionData.Chats, chatSummary)
-
-	fmt.Println("ERROR: ", err)
+	sessionData.ChatSummary, err = database.GetUpdatedSummary(sessionData.ChatSummary, fmt.Sprintf("User: %s\n\nAssistant: %s", received.Message, AiResponse), model_data.ModelNumberMapping[sessionData.ModelId])
+	_ = database.SetSessionValues(received.UserId, sessionData)
 
 	_ = database.Stream.AddToStream(
 		context.Background(),
@@ -147,7 +116,7 @@ func GetChatResponse(database *services.Database, received *structures.UserMessa
 		fmt.Sprintf("%d", sessionData.ModelId),
 		sessionData.Prompt,
 		string(newConversionStr),
-		chatSummary,
+		sessionData.ChatSummary,
 		sessionData.SessionName,
 		isNew)
 	return err
