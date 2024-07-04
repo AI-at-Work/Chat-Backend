@@ -13,11 +13,18 @@ import (
 	"fmt"
 	"github.com/gofiber/contrib/websocket"
 	"github.com/redis/go-redis/v9"
+	"os"
+	"strconv"
 )
 
 func GetChatResponse(database *services.Database, received *structures.UserMessageRequest, messageType int, conn *websocket.Conn) error {
 	fmt.Println("Received File Name: ", received.FileName)
 	fmt.Println("Received Session Id: ", received.SessionId)
+
+	maxHistoryLength, err := strconv.Atoi(os.Getenv("MAX_CHAT_HISTORY_CONTEXT"))
+	if err != nil {
+		return errors.New(string(error_code.Error(error_code.ErrorCodeInternalServerError)))
+	}
 
 	var isNew bool = false
 	if err := database.CheckModelAccess(received.UserId, received.ModelId); err == redis.Nil {
@@ -59,17 +66,16 @@ func GetChatResponse(database *services.Database, received *structures.UserMessa
 	}
 
 	fmt.Println("SESSION ID: ", sessionData.SessionId)
-	sessionData.Chats = append(sessionData.Chats, structures.Chat{"user", received.Message})
-
-	fmt.Println(received)
 	fmt.Println("In OPEN AI ")
 
 	// OpenAI API Call
 	AiResponse, err := database.AIService.AIApiCall(received.UserId, sessionData.SessionId,
-		received.Message, sessionData.FileName, sessionData.Prompt, sessionData.ChatSummary, model_data.ModelNumberMapping[sessionData.ModelId])
+		received.Message, sessionData.FileName, sessionData.Prompt, sessionData.Chats, sessionData.ChatSummary, model_data.ModelNumberMapping[sessionData.ModelId])
 	if err != nil {
 		return errors.New(string(error_code.Error(error_code.ErrorCodeUnableToReceiveResponseToQuery)))
 	}
+
+	sessionData.Chats = append(sessionData.Chats, structures.Chat{"user", received.Message})
 
 	data := structures.UserMessageResponse{
 		UserId:      received.UserId,
@@ -99,6 +105,11 @@ func GetChatResponse(database *services.Database, received *structures.UserMessa
 	} else {
 		// Load the changes in cache
 		sessionData.Chats = append(sessionData.Chats, structures.Chat{Role: "assistant", Content: AiResponse})
+	}
+
+	// Keep only the latest 10 chats
+	if len(sessionData.Chats) > maxHistoryLength {
+		sessionData.Chats = sessionData.Chats[len(sessionData.Chats)-maxHistoryLength:]
 	}
 
 	newConversionStr, err := json.Marshal(newConversion)
@@ -144,7 +155,7 @@ func GetUserDetails(database *services.Database, received *structures.UserDataRe
 }
 
 func GetChatsBySessionId(database *services.Database, received *structures.SessionChatsRequest, messageType int, conn *websocket.Conn) error {
-	data, err := database.GetUserSessionChat(received.UserId, received.SessionId)
+	data, err := database.GetUserSessionChat(received.SessionId)
 	if err != nil {
 		return errors.New(string(error_code.Error(error_code.ErrorCodeUnableToLoadChats)))
 	}

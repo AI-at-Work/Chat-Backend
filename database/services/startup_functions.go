@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
+	"os"
+	"strconv"
 	"strings"
 )
 
@@ -69,6 +71,11 @@ func LoadAllUsers(db *Database) error {
 }
 
 func PopulateRedisCache(db *Database) error {
+	maxHistoryLength, err := strconv.Atoi(os.Getenv("MAX_CHAT_HISTORY_CONTEXT"))
+	if err != nil {
+		return err
+	}
+
 	query := `
 	SELECT sd.Session_Id, sd.Session_Name, sd.User_Id, sd.Model_Id, cd.Session_Prompt, cd.Chats, cd.Chats_Summary, fd.File_Name
 	FROM Session_Details sd 
@@ -111,6 +118,22 @@ func PopulateRedisCache(db *Database) error {
 			return err
 		}
 
+		var chatsList []structures.Chat
+		if err := json.Unmarshal([]byte(chats), &chatsList); err != nil {
+			return fmt.Errorf("error parsing chats data: %w", err)
+		}
+
+		// Keep only the latest 10 chats
+		if len(chatsList) > maxHistoryLength {
+			chatsList = chatsList[len(chatsList)-maxHistoryLength:]
+		}
+
+		// Marshal the updated chats list back to JSON
+		chatsUpdated, err := json.Marshal(chatsList)
+		if err != nil {
+			return fmt.Errorf("error marshaling updated chats data: %w", err)
+		}
+
 		// Redis hash fields
 		sessionData := map[string]interface{}{
 			"session_name":   sessionName,
@@ -118,7 +141,7 @@ func PopulateRedisCache(db *Database) error {
 			"session_prompt": sessionPrompt,
 			"chat_summary":   chatsSummary,
 			"file_name":      fileNameJSON,
-			"chats":          chats,
+			"chats":          chatsUpdated,
 		}
 
 		_, err = db.Cache.HSet(context.Background(), key, sessionData).Result()
@@ -127,10 +150,6 @@ func PopulateRedisCache(db *Database) error {
 		}
 		fmt.Println("Loaded session:", sessionID)
 
-		var chatsList []structures.Chat
-		if err := json.Unmarshal([]byte(chats), &chatsList); err != nil {
-			return fmt.Errorf("error parsing chats data: %w", err)
-		}
 	}
 	return nil
 }

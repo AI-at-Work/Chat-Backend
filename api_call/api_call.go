@@ -1,7 +1,11 @@
 package api_call
 
 import (
+	"ai-chat/database/structures"
+	"ai-chat/utils/response_code/error_code"
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -39,11 +43,16 @@ func (c *AIClient) Close() {
 	c.conn.Close()
 }
 
-func (c *AIClient) AIApiCall(userId, sessionId, chat string, fileName []string, sessionPrompt, chatSummary, modelName string) (string, error) {
+func (c *AIClient) AIApiCall(userId, sessionId, chat string, fileName []string, sessionPrompt string, chatHistory []structures.Chat, chatSummary, modelName string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer func() {
 		cancel()
 	}()
+
+	chatHistoryStr, err := json.Marshal(chatHistory)
+	if err != nil {
+		return "", errors.New(string(error_code.Error(error_code.ErrorCodeJSONMarshal)))
+	}
 
 	r, err := c.client.Process(ctx, &pb.Request{
 		UserId:        userId,
@@ -53,6 +62,7 @@ func (c *AIClient) AIApiCall(userId, sessionId, chat string, fileName []string, 
 		ModelName:     modelName,
 		SessionPrompt: sessionPrompt,
 		ChatSummary:   chatSummary,
+		ChatHistory:   string(chatHistoryStr),
 		Timestamp:     timestamppb.Now(),
 	})
 	if err != nil {

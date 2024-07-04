@@ -260,22 +260,47 @@ func (dataBase *Database) GetSessionsByUserId(userId string) (structures.Session
 	}, nil
 }
 
-func (dataBase *Database) GetUserSessionChat(userId string, sessionId string) (string, error) {
-	// Construct the key to access the session data in Redis
-	key := fmt.Sprintf("user:%s:session:%s", userId, sessionId)
+func (dataBase *Database) GetUserSessionChat(sessionId string) (string, error) {
+	// Use parameterized query to prevent SQL injection
+	query := "SELECT Chats FROM Chat_Details WHERE Session_Id=$1"
 
-	// Retrieve session data from Redis
-	values, err := dataBase.Cache.HGet(context.Background(), key, "chats").Result()
+	rows, err := dataBase.Db.Query(query, sessionId)
 	if err != nil {
-		return "", fmt.Errorf("error retrieving session data from Redis: %w", err)
+		return "", err
 	}
+	defer rows.Close()
 
-	if len(values) == 0 {
-		return "", errors.New("no session data found")
+	var chats string = "[]"
+	for rows.Next() {
+		var chatsTemp sql.NullString
+		if err := rows.Scan(&chatsTemp); err != nil {
+			return "", err
+		}
+
+		// Check if SQL values are not null before appending
+		if chatsTemp.Valid {
+			chats = chatsTemp.String
+		}
 	}
-
-	return values, nil
+	return chats, nil
 }
+
+//func (dataBase *Database) GetUserSessionChat(userId string, sessionId string) (string, error) {
+//	// Construct the key to access the session data in Redis
+//	key := fmt.Sprintf("user:%s:session:%s", userId, sessionId)
+//
+//	// Retrieve session data from Redis
+//	values, err := dataBase.Cache.HGet(context.Background(), key, "chats").Result()
+//	if err != nil {
+//		return "", fmt.Errorf("error retrieving session data from Redis: %w", err)
+//	}
+//
+//	if len(values) == 0 {
+//		return "", errors.New("no session data found")
+//	}
+//
+//	return values, nil
+//}
 
 func (dataBase *Database) GetAIModel() (structures.AIModelsResponse, error) {
 	modelNames := make([]string, 0, len(model_data.ModelNameMapping))
