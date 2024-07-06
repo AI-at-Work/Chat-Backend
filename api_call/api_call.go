@@ -28,7 +28,7 @@ type AIClient struct {
 }
 
 func InitAIClient() *AIClient {
-	address := os.Getenv("AI_SERVER_ADDRESS")
+	address := fmt.Sprintf("%s:%s", os.Getenv("AI_SERVER_HOST"), os.Getenv("AI_SERVER_PORT"))
 	conn, err := grpc.Dial(address, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		panic(err)
