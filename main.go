@@ -3,6 +3,7 @@ package main
 import (
 	"ai-chat/database/services"
 	"ai-chat/handlers"
+	"fmt"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"log"
@@ -65,5 +66,5 @@ func main() {
 	handlers.FileUploadHandler("/upload", app, database)
 
 	log.Printf("Server is starting at %s\n", os.Getenv("SERVER_ADDRESS"))
-	log.Fatal(app.Listen(os.Getenv("SERVER_ADDRESS")))
+	log.Fatal(app.Listen(fmt.Sprintf("%s:%s", os.Getenv("SERVER_HOST"), os.Getenv("SERVER_PORT"))))
 }

@@ -13,7 +13,7 @@ func InitRedis() *redis.Client {
 	dbName, _ := strconv.Atoi(os.Getenv("REDIS_DB"))
 
 	redisDb := redis.NewClient(&redis.Options{
-		Addr:     os.Getenv("REDIS_ADDRESS"),
+		Addr:     fmt.Sprintf("%s:%s", os.Getenv("REDIS_HOST"), os.Getenv("REDIS_PORT")),
 		Password: os.Getenv("REDIS_PASSWORD"),
 		DB:       dbName,
 	})

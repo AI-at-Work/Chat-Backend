@@ -4,7 +4,7 @@ import "fmt"
 
 func GetSummaryPrompt(existingSummary, newChats string) string {
 	return fmt.Sprintf(`
-You are an AI assistant tasked with creating a concise and coherent summary of a user's conversation. You have an existing summary and new chat content to integrate.
+Progressively summarize the lines of conversation provided, adding onto the previous summary returning a new summary.
 
 Existing Summary:
 %s
