@@ -104,7 +104,7 @@ type SessionInfo struct {
 	SessionName string `json:"session_name"`
 }
 
-type SessionListResponse struct {
+type UserSessionResponse struct {
 	UserId  string        `json:"user_id"`
 	Session []SessionInfo `json:"session_info"`
 }
@@ -198,14 +198,14 @@ func (m *UserDataResponse) Marshal() ([]byte, error) {
 	return data, err
 }
 
-func (m *SessionListResponse) Unmarshal(data []byte) {
+func (m *UserSessionResponse) Unmarshal(data []byte) {
 	err := json.Unmarshal(data, &m)
 	if err != nil {
 		log.Println(err)
 	}
 }
 
-func (m *SessionListResponse) Marshal() ([]byte, error) {
+func (m *UserSessionResponse) Marshal() ([]byte, error) {
 	data, err := json.Marshal(m)
 	if err != nil {
 		log.Println(err)

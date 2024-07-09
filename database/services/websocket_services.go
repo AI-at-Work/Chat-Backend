@@ -221,13 +221,13 @@ func (dataBase *Database) CheckModelAccess(userId string, modelId int) error {
 	return errors.New("access denied: user does not have access to this model")
 }
 
-func (dataBase *Database) GetSessionsByUserId(userId string) (structures.SessionListResponse, error) {
+func (dataBase *Database) GetSessionsByUserId(userId string) (structures.UserSessionResponse, error) {
 	// Use parameterized query to prevent SQL injection
 	query := "SELECT session_id, session_name FROM session_details WHERE user_id=$1 ORDER BY session_name DESC"
 
 	rows, err := dataBase.Db.Query(query, userId)
 	if err != nil {
-		return structures.SessionListResponse{}, err
+		return structures.UserSessionResponse{}, err
 	}
 	defer rows.Close()
 
@@ -235,7 +235,7 @@ func (dataBase *Database) GetSessionsByUserId(userId string) (structures.Session
 	for rows.Next() {
 		var sessionIDTemp, sessionNameTemp sql.NullString
 		if err := rows.Scan(&sessionIDTemp, &sessionNameTemp); err != nil {
-			return structures.SessionListResponse{}, err
+			return structures.UserSessionResponse{}, err
 		}
 
 		// Check if SQL values are not null before appending
@@ -254,7 +254,7 @@ func (dataBase *Database) GetSessionsByUserId(userId string) (structures.Session
 		})
 	}
 
-	return structures.SessionListResponse{
+	return structures.UserSessionResponse{
 		UserId:  userId,
 		Session: sessionInfo,
 	}, nil
