@@ -7,11 +7,14 @@ This project simplifies the development of AI Agents by managing chat sessions. 
 ![System Flow Diagram](doc/flow.jpg)
 
 
-## Related Projects
+## Services
 
 - [Chat-AI](https://github.com/AI-at-Work/Chat-AI-Service)
 - [Chat-UI](https://github.com/AI-at-Work/Chat-UI)
 - [Sync-Backend](https://github.com/AI-at-Work/Sync-Backend)
+
+
+  we need all of these services to make system work
 
 ## Getting Started
 
@@ -36,7 +39,14 @@ This project simplifies the development of AI Agents by managing chat sessions. 
    insert into user_data(username, models) VALUES ('Test User', array[4,5]);
    ```
    `4` and `5` represent that user have access to `GPT4Turbo` and `GPT4Turbo09` models.
- 
+
+5. Start `Sync-Backend` and `Chat-AI` service by following steps mention in respective repositories.
+
+6. Restart the service:
+   ```bash
+   docker-compose down && docker-compose up -d
+   ```
+7. Start `Chat-UI` service for the existing UI by following steps mention in respective repository.
 
 ## Configuration
 
