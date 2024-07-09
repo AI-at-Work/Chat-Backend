@@ -68,6 +68,8 @@ services:
         condition: service_started
     container_name: app
     command: ["./wait-for-it.sh", "./main"]
+    volumes:
+      - ./docker_compose_storage/app-data:/go/src/Chat-Backend/public
     environment:
       - DB_HOST=${DB_HOST}
       - DB_NAME=${DB_NAME}
