@@ -290,7 +290,7 @@ We welcome contributions to the Chat-Backend project! Here's how you can contrib
 
 ## License
 
-This project is licensed under the [MIT License](link-to-license).
+This project is licensed under the [GNU GENERAL PUBLIC LICENSE V3](LICENSE).
 
 ## Contact
 
