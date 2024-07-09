@@ -1,14 +1,80 @@
 # Chat-Backend
-A Back-end for Chat Application 
 
-# To start the service
-`
-make && docker-compose up -d --build
-`
+This project simplifies the development of AI Agents by managing chat sessions. Chat-Backend, along with its peer services, provides chat summaries, file handling, and retrieval of specific numbers of chats from previous sessions to AI-Agents. It automatically manages chat responses, allowing developers to focus on implementing AI Agents rather than managing the infrastructure.
 
-create the user in the database and use the generated user-id to make request.
+## System Flow Diagram
 
-# WebSocket Request Handlers
+![System Flow Diagram](doc/flow.jpg)
+
+
+## Related Projects
+
+- [Chat-AI](https://github.com/AI-at-Work/Chat-AI-Service)
+- [Chat-UI](https://github.com/AI-at-Work/Chat-UI)
+- [Sync-Backend](https://github.com/AI-at-Work/Sync-Backend)
+
+## Getting Started
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/your-username/chat-backend.git
+   cd chat-backend
+   ```
+
+2. Copy the `.env.sample` to `.env` and configure the environment variables:
+   ```bash
+   cp .env.sample .env
+   ```
+   Edit the `.env` file to set your specific configurations and add openai api key.
+
+3. Start the service:
+   ```bash
+   make && docker-compose up -d --build
+   ```
+4. Create a user in the database and note down the `user_id` for further use:
+   ```sql
+   insert into user_data(username, models) VALUES ('Test User', array[4,5]);
+   ```
+   `4` and `5` represent that user have access to `GPT4Turbo` and `GPT4Turbo09` models.
+ 
+
+## Configuration
+
+Key configuration options in the `.env` file:
+
+- `SERVER_HOST` and `SERVER_PORT`: Host and port for the Chat-Backend server
+- `DB_*`: PostgreSQL database configurations
+- `REDIS_*`: Redis configurations
+- `AI_SERVER_HOST` and `AI_SERVER_PORT`: AI service gRPC server details
+- `MAX_FILE_SIZE`: Maximum allowed file upload size in MB
+- `MAX_CHAT_HISTORY_CONTEXT`: Number of previous chat messages to include in context
+
+Refer to the `.env.sample` file for a complete list of configuration options.
+
+## API Documentation
+
+### Model Id Mapping
+	GPTTurbo125      = 0
+	GPTTurbo         = 1
+	GPTTurbo1106     = 2
+	GPTTurboInstruct = 3
+	GPT4Turbo        = 4
+	GPT4Turbo09      = 5
+	GPT4             = 6
+	GPT40613         = 7
+	GPT432k          = 8
+	GPT432k0613      = 9
+
+
+### gRPC Service
+
+The Chat-Backend uses gRPC to communicate with the AI Agent. The protocol is defined in `proto/ai_service.proto`.
+
+Key message types:
+- `Request`: Contains user chat information, including user ID, session ID, chat message, model name, etc.
+- `Response`: Contains the AI's response text and timestamp.
+
+### WebSocket API
 
 This documentation provides an overview of the WebSocket request handlers defined in the provided code. Each function generates a request to be sent via WebSocket for various operations related to user details, sessions, and chat messages. Below is the detailed explanation of each function and the corresponding message types.
 
@@ -16,12 +82,12 @@ This documentation provides an overview of the WebSocket request handlers define
 
 - [Message Types](#message-types)
 - [Functions](#functions)
-    - [getUserDetails](#getuserdetails)
-    - [getUserSessions](#getusersessions)
-    - [getUserChatsBySessionId](#getuserchatsbysessionid)
-    - [getUserChatsResponse](#getuserchatsresponse)
-    - [deleteUserSession](#deleteusersession)
-    - [modelList](#modellist)
+  - [getUserDetails](#getuserdetails)
+  - [getUserSessions](#getusersessions)
+  - [getUserChatsBySessionId](#getuserchatsbysessionid)
+  - [getUserChatsResponse](#getuserchatsresponse)
+  - [deleteUserSession](#deleteusersession)
+  - [modelList](#modellist)
 
 ## Message Types
 
@@ -55,12 +121,10 @@ Generates a request to fetch user details.
 
 #### Returns
 
-An object representing the request:
-
-```javascript
+```json
 {
-  user_id: (String),
-  username: (String),
+  "user_id": "String",
+  "username": "String"
 }
 ```
 
@@ -83,15 +147,13 @@ Generates a request to fetch the list of user sessions.
 
 #### Returns
 
-An object representing the request:
-
-```javascript
+```json
 {
-  user_id: (String), 
-  session_info: [{
-    session_id: (String),
-    session_name: (String)
-  }, ...],
+  "user_id": "String", 
+  "session_info": [{
+    "session_id": "String",
+    "session_name": "String"
+  }]
 }
 ```
 
@@ -116,13 +178,11 @@ Generates a request to fetch chats by session ID.
 
 #### Returns
 
-An object representing the request:
-
-```javascript
+```json
 {
-  user_id: (String),
-  session_id: (String),
-  chat: (String),
+  "user_id": "String",
+  "session_id": "String",
+  "chat": "String"
 }
 ```
 
@@ -155,14 +215,12 @@ Generates a request to send a chat message in a specific session.
 
 #### Returns
 
-An object representing the request:
-
-```javascript
+```json
 {
-  user_id: (String),
-  session_id: (String),
-  session_name: (String),
-  message: (String),
+  "user_id": "String",
+  "session_id": "String",
+  "session_name": "String",
+  "message": "String"
 }
 ```
 
@@ -187,11 +245,9 @@ Generates a request to delete a user session.
 
 #### Returns
 
-An object representing the request:
-
-```javascript
+```json
 {
-    user_id: userId,
+    "user_id": "String"
 }
 ```
 
@@ -214,12 +270,28 @@ Generates a request to fetch the list of AI models available.
 
 #### Returns
 
-An object representing the request:
-
-```javascript
+```json
 {
-    models: [(String), ...]
+    "models": ["String"]
 }
 ```
 
-This documentation provides an overview of how to use the provided functions to create requests for a WebSocket connection. Each function returns an object that can be sent through the WebSocket to perform the desired operation.
+
+## Contributing
+
+We welcome contributions to the Chat-Backend project! Here's how you can contribute:
+
+1. Fork the repository
+2. Create a new branch (`git checkout -b feature/AmazingFeature`)
+3. Make your changes
+4. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+5. Push to the branch (`git push origin feature/AmazingFeature`)
+6. Open a Pull Request
+
+## License
+
+This project is licensed under the [MIT License](link-to-license).
+
+## Contact
+
+For any questions or suggestions, please open an issue in the GitHub repository.
