@@ -17,8 +17,8 @@ This project simplifies the development of AI Agents by managing chat sessions. 
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/your-username/chat-backend.git
-   cd chat-backend
+   git clone https://github.com/AI-at-Work/Chat-Backend
+   cd Chat-Backend
    ```
 
 2. Copy the `.env.sample` to `.env` and configure the environment variables:
