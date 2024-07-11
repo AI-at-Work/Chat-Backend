@@ -8,6 +8,8 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"log"
 	"os"
+	"strconv"
+	"time"
 
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/joho/godotenv"
@@ -48,7 +50,13 @@ func main() {
 	}
 	log.Println("Session Loaded successfully")
 
-	app := fiber.New()
+	maxFileSize, _ := strconv.Atoi(os.Getenv("MAX_FILE_SIZE"))
+	app := fiber.New(fiber.Config{
+		BodyLimit:    maxFileSize * 1024 * 1024, // 50MB
+		ReadTimeout:  60 * time.Second,
+		WriteTimeout: 60 * time.Second,
+	})
+
 	app.Use(logger.New())
 	app.Use(cors.New(cors.Config{
 		AllowHeaders: "Origin,Content-Type,Accept,Content-Length,Accept-Language,Accept-Encoding,Connection,Access-Control-Allow-Origin",
