@@ -16,6 +16,8 @@ const (
 	ErrorCodeUnableToCreateEmbedding        = 12
 	ErrorCodeUnableToSearchForEmbedding     = 13
 	ErrorCodeInternalServerError            = 14
+	ErrorCodeInSufficientBalance            = 15
+	ErrorCodeUnableToGetBalanceDetails      = 16
 )
 
 var errorCodeMapping = map[int]string{
@@ -34,6 +36,8 @@ var errorCodeMapping = map[int]string{
 	12: "Unable to Create Embedding",
 	13: "Unable to Search For Embedding",
 	14: "Internal Server Error",
+	15: "Insufficient balance",
+	16: "Unable to get balance details",
 }
 
 func Error(num int) []byte {

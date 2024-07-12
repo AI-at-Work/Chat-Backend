@@ -32,7 +32,7 @@ func LoadAllModels(db *sqlx.DB) error {
 }
 
 func LoadAllUsers(db *Database) error {
-	query := `SELECT User_Id, UserName, Models FROM User_Data;`
+	query := `SELECT User_Id, UserName, Models, Balance FROM User_Data;`
 	rows, err := db.Db.Query(query)
 	if err != nil {
 		return err
@@ -42,7 +42,8 @@ func LoadAllUsers(db *Database) error {
 	for rows.Next() {
 		var userIDTemp, userNameTemp sql.NullString
 		var models []uint8
-		if err := rows.Scan(&userIDTemp, &userNameTemp, &models); err != nil {
+		var balance float64
+		if err := rows.Scan(&userIDTemp, &userNameTemp, &models, &balance); err != nil {
 			return err
 		}
 
@@ -60,6 +61,7 @@ func LoadAllUsers(db *Database) error {
 		_, err = db.Cache.HSet(context.Background(), userKey, map[string]interface{}{
 			"username": userName,
 			"models":   models,
+			"balance":  balance,
 		}).Result()
 		if err != nil {
 			return err

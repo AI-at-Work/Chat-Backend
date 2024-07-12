@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"github.com/gofiber/contrib/websocket"
 	"github.com/redis/go-redis/v9"
+	"math"
 	"os"
 	"strconv"
 )
@@ -27,12 +28,16 @@ func GetChatResponse(database *services.Database, received *structures.UserMessa
 	}
 
 	var isNew bool = false
-	if err := database.CheckModelAccess(received.UserId, received.ModelId); err == redis.Nil {
+	var balance float64 = 0
+	if balance, err = database.CheckModelAccessAndGetBalance(received.UserId, received.ModelId); err == redis.Nil {
 		fmt.Println("User Not Exists ..!!")
 		return errors.New(string(error_code.Error(error_code.ErrorCodeUserDoesNotExists)))
 	} else if err != nil {
 		fmt.Println("User dont have access ..!!")
 		return errors.New(string(error_code.Error(error_code.ErrorCodeUserDoesNotHaveModelAccess)))
+	} else if balance <= 0 {
+		fmt.Println("Insufficient balance ..!!")
+		return errors.New(string(error_code.Error(error_code.ErrorCodeInSufficientBalance)))
 	}
 
 	fmt.Println("User have the access ..!!")
@@ -69,7 +74,7 @@ func GetChatResponse(database *services.Database, received *structures.UserMessa
 	fmt.Println("In OPEN AI ")
 
 	// OpenAI API Call
-	AiResponse, err := database.AIService.AIApiCall(received.UserId, sessionData.SessionId,
+	AiResponse, sessionCost, err := database.AIService.AIApiCall(received.UserId, sessionData.SessionId,
 		received.Message, sessionData.FileName, sessionData.Prompt, sessionData.Chats, sessionData.ChatSummary, model_data.ModelNumberMapping[sessionData.ModelId])
 	if err != nil {
 		return errors.New(string(error_code.Error(error_code.ErrorCodeUnableToReceiveResponseToQuery)))
@@ -117,8 +122,13 @@ func GetChatResponse(database *services.Database, received *structures.UserMessa
 		return errors.New(string(error_code.Error(error_code.ErrorCodeJSONMarshal)))
 	}
 
-	sessionData.ChatSummary, err = database.GetUpdatedSummary(sessionData.ChatSummary, fmt.Sprintf("User: %s\n\nAssistant: %s", received.Message, AiResponse), model_data.ModelNumberMapping[sessionData.ModelId])
+	var summaryCost float64 = 0
+	sessionData.ChatSummary, summaryCost, err = database.GetUpdatedSummary(sessionData.ChatSummary, fmt.Sprintf("User: %s\n\nAssistant: %s", received.Message, AiResponse), model_data.ModelNumberMapping[sessionData.ModelId])
 	_ = database.SetSessionValues(received.UserId, sessionData)
+
+	sessionCost = sessionCost + summaryCost
+	balance = math.Abs(balance - sessionCost)
+	_ = database.SetUserValues(received.UserId, balance)
 
 	_ = database.Stream.AddToStream(
 		context.Background(),
@@ -129,7 +139,8 @@ func GetChatResponse(database *services.Database, received *structures.UserMessa
 		string(newConversionStr),
 		sessionData.ChatSummary,
 		sessionData.SessionName,
-		isNew)
+		isNew,
+		balance)
 	return err
 }
 
@@ -231,6 +242,31 @@ func AIModesList(database *services.Database, s *structures.AIModelsRequest, mes
 	} else {
 		toSend := structures.ClientResponse{
 			MessageType: messages.MessageCodeGetAIModels,
+			Data:        response,
+		}
+
+		response, _ = toSend.Marshal()
+		err = conn.WriteMessage(messageType, response)
+	}
+	return err
+}
+
+func GetBalance(database *services.Database, request *structures.GetBalanceRequest, messageType int, conn *websocket.Conn) error {
+	balance, err := database.GetBalance(request.UserId)
+	if err != nil {
+		return errors.New(string(error_code.Error(error_code.ErrorCodeUnableToGetBalanceDetails)))
+	}
+
+	data := structures.GetBalanceResponse{
+		Balance: balance,
+	}
+
+	var response []byte
+	if response, err = data.Marshal(); err != nil {
+		err = conn.WriteMessage(messageType, error_code.Error(error_code.ErrorCodeJSONMarshal))
+	} else {
+		toSend := structures.ClientResponse{
+			MessageType: messages.MessageCodeGetBalance,
 			Data:        response,
 		}
 

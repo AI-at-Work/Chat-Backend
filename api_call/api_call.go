@@ -2,6 +2,7 @@ package api_call
 
 import (
 	"ai-chat/database/structures"
+	"ai-chat/utils/helper_functions"
 	"ai-chat/utils/response_code/error_code"
 	"context"
 	"encoding/json"
@@ -43,7 +44,7 @@ func (c *AIClient) Close() {
 	c.conn.Close()
 }
 
-func (c *AIClient) AIApiCall(userId, sessionId, chat string, fileName []string, sessionPrompt string, chatHistory []structures.Chat, chatSummary, modelName string) (string, error) {
+func (c *AIClient) AIApiCall(userId, sessionId, chat string, fileName []string, sessionPrompt string, chatHistory []structures.Chat, chatSummary, modelName string) (string, float64, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer func() {
 		cancel()
@@ -51,7 +52,7 @@ func (c *AIClient) AIApiCall(userId, sessionId, chat string, fileName []string, 
 
 	chatHistoryStr, err := json.Marshal(chatHistory)
 	if err != nil {
-		return "", errors.New(string(error_code.Error(error_code.ErrorCodeJSONMarshal)))
+		return "", 0, errors.New(string(error_code.Error(error_code.ErrorCodeJSONMarshal)))
 	}
 
 	r, err := c.client.Process(ctx, &pb.Request{
@@ -67,12 +68,12 @@ func (c *AIClient) AIApiCall(userId, sessionId, chat string, fileName []string, 
 	})
 	if err != nil {
 		fmt.Println("API ERR: ", err)
-		return "", err
+		return "", 0, err
 	}
-	return r.GetResponseText(), nil
+	return r.GetResponseText(), float64(r.GetCost()), nil
 }
 
-func (c *AIClient) ApiSummary(summary, chats, model string) (string, error) {
+func (c *AIClient) ApiSummary(summary, chats, model string) (string, float64, error) {
 	apiKey := os.Getenv("OPENAI_API_KEY")
 
 	client := openai.NewClient(apiKey)
@@ -91,15 +92,20 @@ func (c *AIClient) ApiSummary(summary, chats, model string) (string, error) {
 	resp, err := client.CreateChatCompletion(ctx, chatReq)
 
 	if err != nil {
-		return "", fmt.Errorf("error creating summary: %w", err)
+		return "", 0, fmt.Errorf("error creating summary: %w", err)
 	}
 
 	if len(resp.Choices) == 0 {
-		return "", fmt.Errorf("no summary found for the input")
+		return "", 0, fmt.Errorf("no summary found for the input")
 	}
 
 	newSummary := resp.Choices[0].Message.Content
-	return newSummary, nil
+	cost, err := helper_functions.EstimateOpenAIAPICost(model, resp.Usage.PromptTokens, resp.Usage.CompletionTokens)
+	if err != nil {
+		return "", 0, fmt.Errorf("error while estimating cost: %w", err)
+	}
+
+	return newSummary, cost, nil
 }
 
 func ApiEmbedding(input string) ([]float32, error) {

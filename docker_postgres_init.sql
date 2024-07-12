@@ -9,6 +9,7 @@ BEGIN
            User_Id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
            UserName VARCHAR(255) NOT NULL,
            Models INT[],
+           Balance FLOAT,
            Created_At TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
     END IF;

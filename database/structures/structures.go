@@ -57,6 +57,14 @@ type AIModelsResponse struct {
 	Models []string `json:"models"`
 }
 
+type GetBalanceRequest struct {
+	UserId string `json:"user_id"`
+}
+
+type GetBalanceResponse struct {
+	Balance float64 `json:"balance"`
+}
+
 type UserMessageRequest struct {
 	UserId    string `json:"user_id" db:"user_id"`
 	SessionId string `json:"session_id" db:"session_id"`
@@ -117,6 +125,22 @@ func (m *AIModelsRequest) Unmarshal(data []byte) {
 }
 
 func (m *AIModelsResponse) Marshal() ([]byte, error) {
+	data, err := json.Marshal(m)
+	if err != nil {
+		log.Println(err)
+		return nil, err
+	}
+	return data, err
+}
+
+func (m *GetBalanceRequest) Unmarshal(data []byte) {
+	err := json.Unmarshal(data, &m)
+	if err != nil {
+		log.Println(err)
+	}
+}
+
+func (m *GetBalanceResponse) Marshal() ([]byte, error) {
 	data, err := json.Marshal(m)
 	if err != nil {
 		log.Println(err)

@@ -109,6 +109,20 @@ func (dataBase *Database) CreateNewSession(userId string, sessionData structures
 	return sessionId, nil
 }
 
+func (dataBase *Database) SetUserValues(userId string, balance float64) error {
+	// Redis key for storing user data
+	userKey := fmt.Sprintf("user:%s", userId)
+
+	_, err := dataBase.Cache.HMSet(context.Background(), userKey, map[string]interface{}{
+		"balance": balance,
+	}).Result()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (dataBase *Database) SetSessionValues(userId string, sessionData structures.SessionData) error {
 	chatsJSON, err := json.Marshal(sessionData.Chats)
 	if err != nil {
@@ -197,14 +211,20 @@ func (dataBase *Database) GetUserSessionData(userId string, sessionId string) (s
 	return sessionData, nil
 }
 
-func (dataBase *Database) CheckModelAccess(userId string, modelId int) error {
+func (dataBase *Database) CheckModelAccessAndGetBalance(userId string, modelId int) (float64, error) {
 	// Construct the key to access the user's data in Redis
 	userKey := fmt.Sprintf("user:%s", userId)
 
 	// Retrieve the models data from Redis
-	modelsJSON, err := dataBase.Cache.HGet(context.Background(), userKey, "models").Result()
+	userData, err := dataBase.Cache.HGetAll(context.Background(), userKey).Result()
 	if err != nil {
-		return err
+		return 0, err
+	}
+
+	modelsJSON := userData["models"]
+	balance, err := strconv.ParseFloat(userData["balance"], 64)
+	if err != nil {
+		return 0, err
 	}
 
 	// Parse the JSON array of model IDs
@@ -215,10 +235,10 @@ func (dataBase *Database) CheckModelAccess(userId string, modelId int) error {
 	// Check if the user has access to the specified modelId
 	for _, part := range parts {
 		if part == strconv.Itoa(modelId) {
-			return nil
+			return balance, nil
 		}
 	}
-	return errors.New("access denied: user does not have access to this model")
+	return 0, errors.New("access denied: user does not have access to this model")
 }
 
 func (dataBase *Database) GetSessionsByUserId(userId string) (structures.UserSessionResponse, error) {
@@ -285,23 +305,6 @@ func (dataBase *Database) GetUserSessionChat(sessionId string) (string, error) {
 	return chats, nil
 }
 
-//func (dataBase *Database) GetUserSessionChat(userId string, sessionId string) (string, error) {
-//	// Construct the key to access the session data in Redis
-//	key := fmt.Sprintf("user:%s:session:%s", userId, sessionId)
-//
-//	// Retrieve session data from Redis
-//	values, err := dataBase.Cache.HGet(context.Background(), key, "chats").Result()
-//	if err != nil {
-//		return "", fmt.Errorf("error retrieving session data from Redis: %w", err)
-//	}
-//
-//	if len(values) == 0 {
-//		return "", errors.New("no session data found")
-//	}
-//
-//	return values, nil
-//}
-
 func (dataBase *Database) GetAIModel() (structures.AIModelsResponse, error) {
 	modelNames := make([]string, 0, len(model_data.ModelNameMapping))
 	for name := range model_data.ModelNameMapping {
@@ -312,10 +315,28 @@ func (dataBase *Database) GetAIModel() (structures.AIModelsResponse, error) {
 
 }
 
-func (database *Database) GetUpdatedSummary(existingSummary string, chat, modelName string) (string, error) {
-	chatSummary, err := database.AIService.ApiSummary(existingSummary, chat, modelName)
+func (database *Database) GetUpdatedSummary(existingSummary string, chat, modelName string) (string, float64, error) {
+	chatSummary, cost, err := database.AIService.ApiSummary(existingSummary, chat, modelName)
 	if err != nil {
-		return "", fmt.Errorf("failed to generate new summary: %w", err)
+		return "", 0, fmt.Errorf("failed to generate new summary: %w", err)
 	}
-	return chatSummary, nil
+	return chatSummary, cost, nil
+}
+
+func (dataBase *Database) GetBalance(userId string) (float64, error) {
+	// Construct the key to access the user's data in Redis
+	userKey := fmt.Sprintf("user:%s", userId)
+
+	// Retrieve the models data from Redis
+	balance, err := dataBase.Cache.HGet(context.Background(), userKey, "balance").Result()
+	if err != nil {
+		return 0, err
+	}
+
+	balanceFloat, err := strconv.ParseFloat(balance, 64)
+	if err != nil {
+		return 0, err
+	}
+
+	return balanceFloat, nil
 }

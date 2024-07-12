@@ -72,6 +72,10 @@ func NewConnection(conn *websocket.Conn, database *services.Database) {
 			var dataReceived structures.AIModelsRequest
 			dataReceived.Unmarshal(msg.Data)
 			err = messaging_service.AIModesList(database, &dataReceived, messageType, conn)
+		case messages.MessageCodeGetBalance:
+			var dataReceived structures.GetBalanceRequest
+			dataReceived.Unmarshal(msg.Data)
+			err = messaging_service.GetBalance(database, &dataReceived, messageType, conn)
 		default:
 			sendErrorOverWebSocket(conn, string(error_code.Error(error_code.ErrorCodeUnknownMessage)))
 			return
