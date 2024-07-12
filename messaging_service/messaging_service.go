@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"github.com/gofiber/contrib/websocket"
 	"github.com/redis/go-redis/v9"
-	"math"
 	"os"
 	"strconv"
 )
@@ -75,7 +74,7 @@ func GetChatResponse(database *services.Database, received *structures.UserMessa
 
 	// OpenAI API Call
 	AiResponse, sessionCost, err := database.AIService.AIApiCall(received.UserId, sessionData.SessionId,
-		received.Message, sessionData.FileName, sessionData.Prompt, sessionData.Chats, sessionData.ChatSummary, model_data.ModelNumberMapping[sessionData.ModelId])
+		received.Message, sessionData.FileName, sessionData.Prompt, sessionData.Chats, sessionData.ChatSummary, model_data.ModelNumberMapping[sessionData.ModelId], balance)
 	if err != nil {
 		return errors.New(string(error_code.Error(error_code.ErrorCodeUnableToReceiveResponseToQuery)))
 	}
@@ -126,8 +125,11 @@ func GetChatResponse(database *services.Database, received *structures.UserMessa
 	sessionData.ChatSummary, summaryCost, err = database.GetUpdatedSummary(sessionData.ChatSummary, fmt.Sprintf("User: %s\n\nAssistant: %s", received.Message, AiResponse), model_data.ModelNumberMapping[sessionData.ModelId])
 	_ = database.SetSessionValues(received.UserId, sessionData)
 
+	fmt.Printf("API Cost: %f, summary cost: %f, total cost: %f, remaining balance: %f",
+		sessionCost, summaryCost, sessionCost+summaryCost, balance-(sessionCost+summaryCost))
+
 	sessionCost = sessionCost + summaryCost
-	balance = math.Abs(balance - sessionCost)
+	balance = balance - sessionCost
 	_ = database.SetUserValues(received.UserId, balance)
 
 	_ = database.Stream.AddToStream(

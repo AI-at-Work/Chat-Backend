@@ -44,7 +44,7 @@ func (c *AIClient) Close() {
 	c.conn.Close()
 }
 
-func (c *AIClient) AIApiCall(userId, sessionId, chat string, fileName []string, sessionPrompt string, chatHistory []structures.Chat, chatSummary, modelName string) (string, float64, error) {
+func (c *AIClient) AIApiCall(userId, sessionId, chat string, fileName []string, sessionPrompt string, chatHistory []structures.Chat, chatSummary, modelName string, balance float64) (string, float64, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer func() {
 		cancel()
@@ -64,6 +64,7 @@ func (c *AIClient) AIApiCall(userId, sessionId, chat string, fileName []string, 
 		SessionPrompt: sessionPrompt,
 		ChatSummary:   chatSummary,
 		ChatHistory:   string(chatHistoryStr),
+		Balance:       float32(balance),
 		Timestamp:     timestamppb.Now(),
 	})
 	if err != nil {
@@ -104,7 +105,6 @@ func (c *AIClient) ApiSummary(summary, chats, model string) (string, float64, er
 	if err != nil {
 		return "", 0, fmt.Errorf("error while estimating cost: %w", err)
 	}
-
 	return newSummary, cost, nil
 }
 

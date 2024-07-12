@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"github.com/pkoukk/tiktoken-go"
 	"log"
-	"math"
 	"strings"
 )
 
@@ -16,11 +15,13 @@ func EstimateOpenAIAPICost(model string, numTokensInput, numTokensOutput int) (f
 		return 0, fmt.Errorf("unknown model: %s", model)
 	}
 
-	inputCost := float64(numTokensInput/1000) * pricing.Input
-	outputCost := float64(numTokensOutput/1000) * pricing.Output
-	totalCost := inputCost + outputCost
+	var inputCost, outputCost, totalCost float64
 
-	return math.Round(totalCost), nil
+	inputCost = (float64(numTokensInput) / 1000) * pricing.Input
+	outputCost = (float64(numTokensOutput) / 1000) * pricing.Output
+	totalCost = inputCost + outputCost
+
+	return totalCost, nil
 }
 
 // Function to simulate token counting.
