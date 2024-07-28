@@ -167,6 +167,30 @@ func (dataBase *Database) AddNewFileInSessionData(userId string, sessionId strin
 	return nil
 }
 
+func (dataBase *Database) DeleteFileFromSessionData(userId string, sessionId string, fileName string) error {
+	sessionData, err := dataBase.GetUserSessionData(userId, sessionId)
+	if err != nil {
+		return err
+	}
+
+	// Start searching from the end of the slice
+	for i := len(sessionData.FileName) - 1; i >= 0; i-- {
+		if sessionData.FileName[i] == fileName {
+			// Remove the file by slicing
+			sessionData.FileName = append(sessionData.FileName[:i], sessionData.FileName[i+1:]...)
+			break
+		}
+	}
+
+	// Update the session data
+	err = dataBase.SetSessionValues(userId, sessionData)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (dataBase *Database) GetUserSessionData(userId string, sessionId string) (structures.SessionData, error) {
 	// Construct the key to access the session data in Redis
 	key := fmt.Sprintf("user:%s:session:%s", userId, sessionId)
@@ -315,8 +339,8 @@ func (dataBase *Database) GetAIModel() (structures.AIModelsResponse, error) {
 
 }
 
-func (database *Database) GetUpdatedSummary(existingSummary string, chat, modelName string) (string, float64, error) {
-	chatSummary, cost, err := database.AIService.ApiSummary(existingSummary, chat, modelName)
+func (dataBase *Database) GetUpdatedSummary(existingSummary string, chat, modelName string) (string, float64, error) {
+	chatSummary, cost, err := dataBase.AIService.ApiSummary(existingSummary, chat, modelName)
 	if err != nil {
 		return "", 0, fmt.Errorf("failed to generate new summary: %w", err)
 	}
@@ -339,4 +363,24 @@ func (dataBase *Database) GetBalance(userId string) (float64, error) {
 	}
 
 	return balanceFloat, nil
+}
+
+func (dataBase *Database) DeleteSessionFile(userId, sessionId string, fileName string) error {
+	if fileName == "" {
+		return nil
+	}
+
+	// delete the file from the session cache
+	err := dataBase.DeleteFileFromSessionData(userId, sessionId, fileName)
+	if err != nil {
+		return fmt.Errorf("error while deleting file from cache: %w", err)
+	}
+
+	// delete the file from the database
+	err = dataBase.DeleteFile(context.Background(), sessionId, fileName)
+	if err != nil {
+		return fmt.Errorf("error while deleting file from database: %w", err)
+	}
+
+	return nil
 }

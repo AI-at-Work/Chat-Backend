@@ -64,6 +64,13 @@ func NewConnection(conn *websocket.Conn, database *services.Database) {
 			var dataReceived structures.UserMessageRequest
 			dataReceived.Unmarshal(msg.Data)
 			err = messaging_service.GetChatResponse(database, &dataReceived, messageType, conn)
+			if dataReceived.FileName != "" && err != nil {
+				fmt.Println("Here is the file name:", dataReceived.FileName)
+				err1 := database.DeleteSessionFile(dataReceived.UserId, dataReceived.SessionId, dataReceived.FileName)
+				if err1 != nil {
+					err = fmt.Errorf("while processing two error occured : %v and %v", err.Error(), err1)
+				}
+			}
 		case messages.MessageCodeSessionDelete:
 			var dataReceived structures.SessionDeleteRequest
 			dataReceived.Unmarshal(msg.Data)

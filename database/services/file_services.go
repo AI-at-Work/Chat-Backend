@@ -71,6 +71,58 @@ func (dataBase *Database) SaveFile(conn *fiber.Ctx, sessionId string, fileName s
 	return nil
 }
 
+func (dataBase *Database) DeleteFile(conn context.Context, sessionId string, fileName string) error {
+	var query string
+	var err error
+
+	// Start a transaction
+	tx, err := dataBase.Db.BeginTxx(conn, nil) // Notice the use of BeginTxx for better context support
+	if err != nil {
+		return fmt.Errorf("failed to start file save transaction: %w", err)
+	}
+	defer func() {
+		if err != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// save image to public dir
+	err = os.Remove(fmt.Sprintf("./%s/%s", os.Getenv("PUBLIC_DIR"), fileName))
+	if err != nil {
+		log.Println("delete file error --> ", err)
+		return fmt.Errorf("error while deleting file: %w", err)
+	}
+
+	query = `UPDATE File_Data SET File_Name = array_remove(File_Name, :file_name) WHERE Session_Id = :session_id AND :file_name = ANY(File_Name);`
+
+	params := map[string]interface{}{
+		"session_id": sessionId,
+		"file_name":  fileName,
+	}
+
+	// Execute the query
+	result, err := tx.NamedExecContext(conn, query, params)
+	if err != nil {
+		return fmt.Errorf("failed to execute delete file query: %w", err)
+	}
+
+	// Check how many rows were affected
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("in file delete failed to get affected rows: %w", err)
+	}
+	if affected == 0 {
+		return errors.New("in file delete no rows were affected, possible invalid session_id")
+	}
+
+	// Commit the transaction
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("in file save failed to commit transaction: %w", err)
+	}
+
+	return nil
+}
+
 func (dataBase *Database) AddSession(ctx context.Context, userId string, sessionId string, modelId string, sessionName string) error {
 	var query string
 	var err error
