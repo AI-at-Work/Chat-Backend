@@ -17,7 +17,7 @@ import (
 func LoadAllModels(db *sqlx.DB) error {
 	// Load all the models details
 	insertQuery := "INSERT INTO Model_Details (Model_Id, Model_Name, context_length) VALUES (:id, :name, :len);"
-	for id, name := range model_data.ModelNumberMapping {
+	for id, name := range model_data.GetModelNumberMapping() {
 		contextLength := model_data.ModelContextLength(id)
 		_, err := db.NamedExec(insertQuery, map[string]interface{}{"id": id, "name": name, "len": contextLength})
 		if err != nil {

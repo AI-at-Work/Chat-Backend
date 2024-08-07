@@ -58,7 +58,7 @@ func main() {
 	userDetails := UserMessage{
 		UserId: "d3f01d09-e4cc-46a9-9a92-e84bb8b6bd6f",
 		//SessionId: "33deeb43-8c61-4dc8-8f8d-69a2139b9bd9",
-		//ModelId:   48,
+		//ModelName:   48,
 		//Message:   "Ok AB Chal Raha Hai ..!!",
 		//Prompt:    "YOU are coder",
 	} // Specify the user ID you want to fetch

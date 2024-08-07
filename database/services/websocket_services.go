@@ -330,10 +330,7 @@ func (dataBase *Database) GetUserSessionChat(sessionId string) (string, error) {
 }
 
 func (dataBase *Database) GetAIModel() (structures.AIModelsResponse, error) {
-	modelNames := make([]string, 0, len(model_data.ModelNameMapping))
-	for name := range model_data.ModelNameMapping {
-		modelNames = append(modelNames, name)
-	}
+	modelNames := model_data.GetModelsName()
 	sort.Strings(modelNames) // Sorting the slice to ensure the order is consistent
 	return structures.AIModelsResponse{Models: modelNames}, nil
 

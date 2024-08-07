@@ -20,6 +20,7 @@ import (
 func GetChatResponse(database *services.Database, received *structures.UserMessageRequest, messageType int, conn *websocket.Conn) error {
 	fmt.Println("Received File Name: ", received.FileName)
 	fmt.Println("Received Session Id: ", received.SessionId)
+	fmt.Println("Received Model : ", received.ModelName)
 
 	maxHistoryLength, err := strconv.Atoi(os.Getenv("MAX_CHAT_HISTORY_CONTEXT"))
 	if err != nil {
@@ -28,7 +29,7 @@ func GetChatResponse(database *services.Database, received *structures.UserMessa
 
 	var isNew bool = false
 	var balance float64 = 0
-	if balance, err = database.CheckModelAccessAndGetBalance(received.UserId, received.ModelId); err == redis.Nil {
+	if balance, err = database.CheckModelAccessAndGetBalance(received.UserId, model_data.ModelNumber(received.ModelName)); err == redis.Nil {
 		fmt.Println("User Not Exists ..!!")
 		return errors.New(string(error_code.Error(error_code.ErrorCodeUserDoesNotExists)))
 	} else if err != nil {
@@ -45,7 +46,7 @@ func GetChatResponse(database *services.Database, received *structures.UserMessa
 	if received.SessionId == "NEW" {
 		// create the session
 		sessionData = structures.SessionData{
-			ModelId:     received.ModelId,
+			ModelId:     model_data.ModelNumber(received.ModelName),
 			SessionName: helper_functions.TruncateText(received.Message, 20),
 			Prompt:      received.Prompt,
 			FileName:    nil,
@@ -74,7 +75,7 @@ func GetChatResponse(database *services.Database, received *structures.UserMessa
 
 	// OpenAI API Call
 	AiResponse, sessionCost, err := database.AIService.AIApiCall(received.UserId, sessionData.SessionId,
-		received.Message, sessionData.FileName, sessionData.Prompt, sessionData.Chats, sessionData.ChatSummary, model_data.ModelNumberMapping[sessionData.ModelId], balance)
+		received.Message, sessionData.FileName, sessionData.Prompt, sessionData.Chats, sessionData.ChatSummary, model_data.ModelName(sessionData.ModelId), model_data.GetModelProvider(model_data.ModelName(sessionData.ModelId)), balance)
 	if err != nil {
 		return errors.New(string(error_code.Error(error_code.ErrorCodeUnableToReceiveResponseToQuery)))
 	}
@@ -122,17 +123,20 @@ func GetChatResponse(database *services.Database, received *structures.UserMessa
 	}
 
 	var summaryCost float64 = 0
-	sessionData.ChatSummary, summaryCost, err = database.GetUpdatedSummary(sessionData.ChatSummary, fmt.Sprintf("User: %s\n\nAssistant: %s", received.Message, AiResponse), model_data.ModelNumberMapping[sessionData.ModelId])
-	_ = database.SetSessionValues(received.UserId, sessionData)
+	sessionData.ChatSummary, summaryCost, err = database.GetUpdatedSummary(sessionData.ChatSummary, fmt.Sprintf("User: %s\n\nAssistant: %s", received.Message, AiResponse), model_data.ModelName(sessionData.ModelId))
+	fmt.Println("Summary Generation Error: ", err)
+	err = database.SetSessionValues(received.UserId, sessionData)
+	fmt.Println("Session Value Update Error: ", err)
 
 	fmt.Printf("API Cost: %f, summary cost: %f, total cost: %f, remaining balance: %f",
 		sessionCost, summaryCost, sessionCost+summaryCost, balance-(sessionCost+summaryCost))
 
 	sessionCost = sessionCost + summaryCost
 	balance = balance - sessionCost
-	_ = database.SetUserValues(received.UserId, balance)
+	err = database.SetUserValues(received.UserId, balance)
+	fmt.Println("Session Value Balance Update Error: ", err)
 
-	_ = database.Stream.AddToStream(
+	err = database.Stream.AddToStream(
 		context.Background(),
 		received.UserId,
 		sessionData.SessionId,
@@ -143,7 +147,8 @@ func GetChatResponse(database *services.Database, received *structures.UserMessa
 		sessionData.SessionName,
 		isNew,
 		balance)
-	return err
+	fmt.Println("Add To Stream Error: ", err)
+	return nil
 }
 
 func GetUserDetails(database *services.Database, received *structures.UserDataRequest, messageType int, conn *websocket.Conn) error {

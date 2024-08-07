@@ -30,7 +30,7 @@ func (dataBase *Database) SaveFile(conn *fiber.Ctx, sessionId string, fileName s
 	// save image to public dir
 	err = conn.SaveFile(file, fmt.Sprintf("./%s/%s", os.Getenv("PUBLIC_DIR"), fileName))
 	if err != nil {
-		log.Println("image save error --> ", err)
+		log.Println("file save error --> ", err)
 		return conn.JSON(fiber.Map{"status": 500, "message": "Server error", "data": nil})
 	}
 
@@ -123,7 +123,7 @@ func (dataBase *Database) DeleteFile(conn context.Context, sessionId string, fil
 	return nil
 }
 
-func (dataBase *Database) AddSession(ctx context.Context, userId string, sessionId string, modelId string, sessionName string) error {
+func (dataBase *Database) AddSession(ctx context.Context, userId string, sessionId string, modelId int, sessionName string) error {
 	var query string
 	var err error
 

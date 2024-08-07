@@ -4,6 +4,7 @@ import (
 	"ai-chat/database/services"
 	"ai-chat/database/structures"
 	"ai-chat/utils/helper_functions"
+	"ai-chat/utils/model_data"
 	"ai-chat/utils/response_code/error_code"
 	"context"
 	"errors"
@@ -63,13 +64,13 @@ func fileUpload(c *fiber.Ctx, database *services.Database) error {
 	}
 
 	fileName := generateUniqueFileName(file.Filename)
-	log.Printf("File Upload: UserID: %s, SessionID: %s, ModelID: %s, Prompt: %s\n",
-		formData.UserId, formData.SessionId, formData.ModelId, formData.Prompt)
+	log.Printf("File Upload: UserID: %s, SessionID: %s, Model Name: %s, Prompt: %s\n",
+		formData.UserId, formData.SessionId, formData.ModelName, formData.Prompt)
 
 	var allSessionFiles []string
 	if formData.SessionId == "NEW" {
 		var err error
-		formData.SessionId, err = fileUploadForNewSession(database, formData.UserId, formData.ModelId, formData.Prompt, fileName)
+		formData.SessionId, err = fileUploadForNewSession(database, formData.UserId, formData.ModelName, formData.Prompt, fileName)
 		if err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 				"message": "Unable To Create New Session",
@@ -128,11 +129,8 @@ func fileUpload(c *fiber.Ctx, database *services.Database) error {
 	})
 }
 
-func fileUploadForNewSession(database *services.Database, userId string, modelId string, sessionPrompt, fileName string) (string, error) {
-	modelIdInt, err := strconv.Atoi(modelId)
-	if err != nil {
-		return "", errors.New(string(error_code.Error(error_code.ErrorCodeUnableToCreateSession)))
-	}
+func fileUploadForNewSession(database *services.Database, userId string, modelName string, sessionPrompt, fileName string) (string, error) {
+	modelIdInt := model_data.ModelNumber(modelName)
 
 	sessionData := structures.SessionData{
 		ModelId:     modelIdInt,
@@ -148,7 +146,7 @@ func fileUploadForNewSession(database *services.Database, userId string, modelId
 	}
 	sessionData.SessionId = sessionId
 
-	err = database.AddSession(context.Background(), userId, sessionId, modelId, sessionData.SessionName)
+	err = database.AddSession(context.Background(), userId, sessionId, modelIdInt, sessionData.SessionName)
 	if err != nil {
 		return "", errors.New(string(error_code.Error(error_code.ErrorCodeUnableToCreateSession)))
 	}
@@ -166,7 +164,7 @@ func validateAndExtractFormData(c *fiber.Ctx) (*structures.FormData, error) {
 		SessionId: c.FormValue("session_id"),
 		UserId:    c.FormValue("user_id"),
 		Prompt:    c.FormValue("session_prompt"),
-		ModelId:   c.FormValue("model_id"),
+		ModelName: c.FormValue("model_name"),
 	}
 
 	if formData.SessionId == "" {
@@ -175,8 +173,8 @@ func validateAndExtractFormData(c *fiber.Ctx) (*structures.FormData, error) {
 	if formData.UserId == "" {
 		return nil, errors.New("user ID is required")
 	}
-	if formData.ModelId == "" {
-		return nil, errors.New("model ID is required")
+	if formData.ModelName == "" {
+		return nil, errors.New("model Name is required")
 	}
 
 	return formData, nil

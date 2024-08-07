@@ -68,7 +68,7 @@ type GetBalanceResponse struct {
 type UserMessageRequest struct {
 	UserId    string `json:"user_id" db:"user_id"`
 	SessionId string `json:"session_id" db:"session_id"`
-	ModelId   int    `json:"model_id" db:"model_id"`
+	ModelName string `json:"model_name" db:"model_name"`
 	Message   string `json:"message" db:"message"`
 	Prompt    string `json:"session_prompt" db:"session_prompt"`
 	FileName  string `json:"file_name" db:"file_name"`
@@ -102,7 +102,7 @@ type SessionData struct {
 
 type FormData struct {
 	SessionId string `json:"session_id" db:"session_id"`
-	ModelId   string `json:"model_id" db:"model_id"`
+	ModelName string `json:"model_name" db:"model_name"`
 	Prompt    string `json:"session_prompt" db:"session_prompt"`
 	UserId    string `json:"user_id" db:"user_id"`
 }

@@ -36,9 +36,9 @@ This project simplifies the development of AI Agents by managing chat sessions. 
    ```
 4. Create a user in the database and note down the `user_id` for further use:
    ```sql
-   insert into user_data(username, models) VALUES ('Test User', array[4,5]);
+   insert into user_data(username, models) VALUES ('Test User', array[4,5,8]);
    ```
-   `4` and `5` represent that user have access to `GPT4Turbo` and `GPT4Turbo09` models.
+   `4` and `5` represent that user have access to `GPT4Turbo`, `GPT4Turbo09` and `llama3.1:8b` models.
 
 5. Start `Sync-Backend` and `Chat-AI` service by following steps mention in respective repositories.
 

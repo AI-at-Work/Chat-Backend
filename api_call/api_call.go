@@ -3,6 +3,7 @@ package api_call
 import (
 	"ai-chat/database/structures"
 	"ai-chat/utils/helper_functions"
+	"ai-chat/utils/model_data"
 	"ai-chat/utils/response_code/error_code"
 	"context"
 	"encoding/json"
@@ -26,6 +27,7 @@ const (
 type AIClient struct {
 	client pb.AIServiceClient
 	conn   *grpc.ClientConn
+	llm    *LLM
 }
 
 func InitAIClient() *AIClient {
@@ -37,6 +39,7 @@ func InitAIClient() *AIClient {
 	return &AIClient{
 		client: pb.NewAIServiceClient(conn),
 		conn:   conn,
+		llm:    NewLLM(os.Getenv("OPENAI_API_KEY")),
 	}
 }
 
@@ -44,7 +47,7 @@ func (c *AIClient) Close() {
 	c.conn.Close()
 }
 
-func (c *AIClient) AIApiCall(userId, sessionId, chat string, fileName []string, sessionPrompt string, chatHistory []structures.Chat, chatSummary, modelName string, balance float64) (string, float64, error) {
+func (c *AIClient) AIApiCall(userId, sessionId, chat string, fileName []string, sessionPrompt string, chatHistory []structures.Chat, chatSummary, modelName, modelProvider string, balance float64) (string, float64, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer func() {
 		cancel()
@@ -61,6 +64,7 @@ func (c *AIClient) AIApiCall(userId, sessionId, chat string, fileName []string, 
 		ChatMessage:   chat,
 		FileName:      fileName,
 		ModelName:     modelName,
+		ModelProvider: modelProvider,
 		SessionPrompt: sessionPrompt,
 		ChatSummary:   chatSummary,
 		ChatHistory:   string(chatHistoryStr),
@@ -75,37 +79,18 @@ func (c *AIClient) AIApiCall(userId, sessionId, chat string, fileName []string, 
 }
 
 func (c *AIClient) ApiSummary(summary, chats, model string) (string, float64, error) {
-	apiKey := os.Getenv("OPENAI_API_KEY")
-
-	client := openai.NewClient(apiKey)
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
 	prompt := GetSummaryPrompt(summary, chats)
 
-	// Determine the type of completion based on the model
-	chatReq := openai.ChatCompletionRequest{
-		Model: model,
-		Messages: []openai.ChatCompletionMessage{
-			{Role: "user", Content: prompt},
-		},
-	}
-	resp, err := client.CreateChatCompletion(ctx, chatReq)
-
+	resp, err := c.llm.Generate(model_data.GetModelProvider(model), model, prompt, "")
 	if err != nil {
-		return "", 0, fmt.Errorf("error creating summary: %w", err)
+		return "", 0, fmt.Errorf("error while calling llm : %w", err)
 	}
 
-	if len(resp.Choices) == 0 {
-		return "", 0, fmt.Errorf("no summary found for the input")
-	}
-
-	newSummary := resp.Choices[0].Message.Content
-	cost, err := helper_functions.EstimateOpenAIAPICost(model, resp.Usage.PromptTokens, resp.Usage.CompletionTokens)
+	cost, err := helper_functions.EstimateOpenAIAPICost(model, resp.InputTokens, resp.OutputTokens)
 	if err != nil {
 		return "", 0, fmt.Errorf("error while estimating cost: %w", err)
 	}
-	return newSummary, cost, nil
+	return resp.Text, cost, nil
 }
 
 func ApiEmbedding(input string) ([]float32, error) {
