@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	timeout = 30 * time.Second
+	timeout = 10 * time.Minute
 )
 
 type AIClient struct {

@@ -73,9 +73,15 @@ func GetChatResponse(database *services.Database, received *structures.UserMessa
 	fmt.Println("SESSION ID: ", sessionData.SessionId)
 	fmt.Println("In OPEN AI ")
 
-	// OpenAI API Call
+	var fileURL []string
+	if received.FileName != "" {
+		fileURL = append(fileURL, fmt.Sprintf("http://app:%s/uploads/%s", os.Getenv("SERVER_PORT"), received.FileName))
+	}
+
+	// API Call
+	// Here use sessionData.FileName instead of received.FileName for all session Files
 	AiResponse, sessionCost, err := database.AIService.AIApiCall(received.UserId, sessionData.SessionId,
-		received.Message, sessionData.FileName, sessionData.Prompt, sessionData.Chats, sessionData.ChatSummary, model_data.ModelName(sessionData.ModelId), model_data.GetModelProvider(model_data.ModelName(sessionData.ModelId)), balance)
+		received.Message, fileURL, sessionData.Prompt, sessionData.Chats, sessionData.ChatSummary, model_data.ModelName(sessionData.ModelId), model_data.GetModelProvider(model_data.ModelName(sessionData.ModelId)), balance)
 	if err != nil {
 		return errors.New(string(error_code.Error(error_code.ErrorCodeUnableToReceiveResponseToQuery)))
 	}
