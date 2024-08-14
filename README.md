@@ -32,7 +32,7 @@ This project simplifies the development of AI Agents by managing chat sessions. 
 
 3. Start the service:
    ```bash
-   make && docker-compose up -d --build
+   make && docker compose up -d --build
    ```
 4. Create a user in the database and note down the `user_id` for further use:
    ```sql
@@ -73,8 +73,7 @@ Refer to the `.env.sample` file for a complete list of configuration options.
 	GPT4Turbo09      = 5
 	GPT4             = 6
 	GPT40613         = 7
-	GPT432k          = 8
-	GPT432k0613      = 9
+	llama3.1:8b      = 8
 
 
 ### gRPC Service
